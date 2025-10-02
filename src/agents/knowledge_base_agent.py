@@ -5,7 +5,11 @@ from typing import Any
 from langchain_aws import AmazonKnowledgeBasesRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig, RunnableLambda, RunnableSerializable
+from langchain_core.runnables import (
+    RunnableConfig,
+    RunnableLambda,
+    RunnableSerializable,
+)
 from langchain_core.runnables.base import RunnableSequence
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.managed import RemainingSteps

@@ -5,7 +5,11 @@ from langchain_community.tools import DuckDuckGoSearchResults, OpenWeatherMapQue
 from langchain_community.utilities import OpenWeatherMapAPIWrapper
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig, RunnableLambda, RunnableSerializable
+from langchain_core.runnables import (
+    RunnableConfig,
+    RunnableLambda,
+    RunnableSerializable,
+)
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode
