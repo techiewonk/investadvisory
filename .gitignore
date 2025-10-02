@@ -180,8 +180,8 @@ cython_debug/
 .idea/
 
 # Data
-*.docx
-*.pdf
+# *.docx
+# *.pdf
 
 # Chroma db
 *.db

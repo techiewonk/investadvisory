@@ -2,7 +2,12 @@
     "python_version": "3.12",
     "dependencies": ["./src"],
     "graphs": {
-        "research_assistant": "./src/agents/research_assistant.py:research_assistant"
+      "supervisor-agent": "./src/agents/supervisor_agent.py:supervisor_agent",
+      "portfolio-agent": "./src/agents/portfolio_agent.py:portfolio_agent",
+      "market-research-agent": "./src/agents/market_research_agent.py:market_research_agent",
+      "risk-optimization-agent": "./src/agents/risk_optimization_agent.py:risk_optimization_agent",
+      "math-agent": "./src/agents/math_agent.py:math_agent",
+      "research-assistant": "./src/agents/research_assistant.py:research_assistant"
     },
     "env": "./.env"
 }
