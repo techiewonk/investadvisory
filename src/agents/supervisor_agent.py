@@ -10,8 +10,7 @@ The system includes safety checks, tool integration, and extensible architecture
 from datetime import datetime
 from typing import Literal
 
-from langchain_community.tools import DuckDuckGoSearchResults, OpenWeatherMapQueryRun
-from langchain_community.utilities import OpenWeatherMapAPIWrapper
+# Removed - now imported from individual agent modules
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import (
@@ -27,8 +26,9 @@ from langgraph_supervisor import create_supervisor
 from core import get_model, settings
 
 from .llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
-from .portfolio_tools import PORTFOLIO_TOOLS
-from .tools import calculator
+from .market_research_agent import create_market_research_agent
+from .math_agent import MATH_TOOLS, create_math_agent
+from .portfolio_agent import create_portfolio_agent
 
 model = get_model(settings.DEFAULT_MODEL)
 
@@ -43,52 +43,7 @@ class AgentState(MessagesState, total=False):
     remaining_steps: RemainingSteps
 
 
-# Initialize tools for production use
-web_search = DuckDuckGoSearchResults(name="WebSearch")
-base_tools = [web_search, calculator] + PORTFOLIO_TOOLS
-
-# Add weather tool if API key is set
-if settings.OPENWEATHERMAP_API_KEY:
-    wrapper = OpenWeatherMapAPIWrapper(
-        openweathermap_api_key=settings.OPENWEATHERMAP_API_KEY.get_secret_value()
-    )
-    base_tools.append(OpenWeatherMapQueryRun(name="Weather", api_wrapper=wrapper))
-
 current_date = datetime.now().strftime("%B %d, %Y")
-
-
-def add(a: float, b: float) -> float:
-    """Add two numbers."""
-    return a + b
-
-
-def multiply(a: float, b: float) -> float:
-    """Multiply two numbers."""
-    return a * b
-
-
-def divide(a: float, b: float) -> float:
-    """Divide two numbers."""
-    if b == 0:
-        return float('inf')
-    return a / b
-
-
-def subtract(a: float, b: float) -> float:
-    """Subtract two numbers."""
-    return a - b
-
-
-# Math tools for specialized math agent
-math_tools = [add, multiply, divide, subtract, calculator]
-
-# Research tools for research agent
-research_tools = [web_search] + PORTFOLIO_TOOLS
-if settings.OPENWEATHERMAP_API_KEY:
-    weather_wrapper = OpenWeatherMapAPIWrapper(
-        openweathermap_api_key=settings.OPENWEATHERMAP_API_KEY.get_secret_value()
-    )
-    research_tools.append(OpenWeatherMapQueryRun(name="Weather", api_wrapper=weather_wrapper))
 
 
 def format_safety_message(safety: LlamaGuardOutput) -> AIMessage:
@@ -214,91 +169,15 @@ def create_production_agent(agent_name: str, tools: list, instructions: str) -> 
 def workflow(chosen_model):
     """Create a production-ready hierarchical supervisor for investment advisory."""
 
-    # Define specialized agent instructions
-    math_instructions = f"""
-    You are a specialized mathematical analysis expert for investment advisory.
-    Today's date is {current_date}.
-    
-    Your expertise includes:
-    - Portfolio calculations and risk analysis
-    - Financial mathematics and compound interest
-    - Statistical analysis and correlation calculations
-    - Options pricing and derivatives math
-    - Performance metrics and ratios
-    
-    Always use appropriate tools for calculations. Be precise and show your work.
-    Focus only on mathematical aspects - delegate research and data gathering to other agents.
-    """
-
-    portfolio_instructions = f"""
-    You are a portfolio analysis specialist for investment advisory.
-    Today's date is {current_date}.
-    
-    Your expertise includes:
-    - Client portfolio analysis and performance tracking
-    - Asset allocation and diversification analysis
-    - Risk assessment and portfolio optimization
-    - Transaction history analysis
-    - Holdings performance evaluation
-    
-    Portfolio Analysis Tools:
-    - If a client is selected in the UI, use get_selected_client_portfolios, get_selected_client_transactions, 
-      or analyze_selected_client_performance for automatic analysis
-    - For specific clients, use get_client_portfolios, get_client_transactions, or analyze_client_portfolio_performance
-    - Use get_all_clients to see available clients
-    
-    Always provide actionable insights and recommendations based on portfolio data.
-    """
-
-    research_instructions = f"""
-    You are a market research and analysis expert for investment advisory.
-    Today's date is {current_date}.
-    
-    Your expertise includes:
-    - Market research and trend analysis
-    - Company and sector analysis
-    - Economic indicators and news analysis
-    - Investment opportunity identification
-    - Risk factor assessment
-    
-    Tools available:
-    - Web search for current market information
-    - Weather data for sector-specific analysis (agriculture, energy, etc.)
-    - Calculator for basic computations
-    
-    NOTE: THE USER CAN'T SEE THE TOOL RESPONSE.
-    
-    Always include markdown-formatted links to citations. Only use links returned by tools.
-    Delegate complex mathematical calculations to the math expert.
-    Delegate portfolio-specific analysis to the portfolio expert.
-    """
-
-    # Create specialized agents using create_react_agent for consistency with supervisor
-    # These agents will have consistent message flow with the supervisor pattern
-    math_agent = create_react_agent(
-        model=chosen_model,
-        tools=math_tools,
-        name="sub-agent-math_expert",
-        prompt=math_instructions,
-    ).with_config(tags=["skip_stream"])
-
-    portfolio_agent = create_react_agent(
-        model=chosen_model,
-        tools=PORTFOLIO_TOOLS,
-        name="sub-agent-portfolio_expert",
-        prompt=portfolio_instructions,
-    ).with_config(tags=["skip_stream"])
-
-    research_agent = create_react_agent(
-        model=chosen_model,
-        tools=research_tools,
-        name="sub-agent-research_expert",
-        prompt=research_instructions,
-    ).with_config(tags=["skip_stream"])
+    # Create specialized agents using the imported agent creation functions
+    # These agents are now defined in separate files for independent use
+    math_agent = create_math_agent(chosen_model).with_config(tags=["skip_stream"])
+    portfolio_agent_instance = create_portfolio_agent(chosen_model).with_config(tags=["skip_stream"])
+    research_agent = create_market_research_agent(chosen_model).with_config(tags=["skip_stream"])
 
     # Create intermediate supervisor for specialized analysis
     analysis_supervisor = create_supervisor(
-        [math_agent, portfolio_agent],
+        [math_agent, portfolio_agent_instance],
         model=chosen_model,
         prompt=(
             "You are an analysis supervisor managing mathematical and portfolio experts. "
