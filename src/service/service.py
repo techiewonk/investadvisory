@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from langchain_core._api import LangChainBetaWarning
@@ -26,6 +26,8 @@ from langgraph.types import Command, Interrupt
 from langsmith import Client as LangsmithClient
 
 from agents import DEFAULT_AGENT, AgentGraph, get_agent, get_all_agent_info, load_agent
+from agents.agent_evaluation import agent_evaluator
+from agents.response_validation import response_validator
 from core import settings
 from memory import initialize_database, initialize_store
 from schema import (
@@ -127,6 +129,78 @@ async def info() -> ServiceMetadata:
     )
 
 
+async def _track_agent_invocation(agent_id: str, agent: AgentGraph, **kwargs) -> Any:
+    """Track agent invocation performance metrics."""
+    import time
+    
+    start_time = time.time()
+    success = False
+    confidence_score = None
+    tools_used = []
+    error_type = None
+    
+    try:
+        # Execute the agent
+        result = await agent.ainvoke(**kwargs)
+        success = True
+        
+        # Extract metrics from result if available
+        if isinstance(result, dict) and 'messages' in result:
+            messages = result['messages']
+        elif hasattr(result, 'messages') and result.messages:
+            messages = result.messages
+        else:
+            messages = []
+            
+        if messages:
+            last_message = messages[-1]
+            if hasattr(last_message, 'content'):
+                # Try to extract confidence score from content
+                content = str(last_message.content)
+                if 'confidence' in content.lower():
+                    import re
+                    confidence_matches = re.findall(r'confidence[:\s]*([0-9.]+)', content, re.IGNORECASE)
+                    if confidence_matches:
+                        try:
+                            confidence_score = float(confidence_matches[0])
+                            if confidence_score > 1:  # If percentage, convert to decimal
+                                confidence_score = confidence_score / 100
+                        except ValueError:
+                            pass
+        
+        # For streaming results, extract tools from the result events
+        if isinstance(result, list):
+            for event_type, event_data in result:
+                if event_type == "updates" and isinstance(event_data, dict):
+                    for node_name, node_data in event_data.items():
+                        if isinstance(node_data, dict) and "messages" in node_data:
+                            for message in node_data["messages"]:
+                                if hasattr(message, 'tool_calls') and message.tool_calls:
+                                    for tool_call in message.tool_calls:
+                                        if hasattr(tool_call, 'name'):
+                                            tools_used.append(tool_call.name)
+        
+        return result
+        
+    except Exception as e:
+        error_type = type(e).__name__
+        logger.error(f"Error in agent {agent_id}: {e}")
+        raise
+    
+    finally:
+        response_time = time.time() - start_time
+        
+        # Record the invocation
+        agent_evaluator.record_invocation(
+            agent_id=agent_id,
+            response_time=response_time,
+            success=success,
+            confidence_score=confidence_score,
+            tools_used=tools_used,
+            error_type=error_type
+        )
+
+
 async def _handle_input(user_input: UserInput, agent: AgentGraph) -> tuple[dict[str, Any], UUID]:
     """
     Parse user input and handle any required interrupt resumption.
@@ -204,7 +278,8 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
     kwargs, run_id = await _handle_input(user_input, agent)
 
     try:
-        response_events: list[tuple[str, Any]] = await agent.ainvoke(**kwargs, stream_mode=["updates", "values"])  # type: ignore # fmt: skip
+        # Use tracking wrapper for performance monitoring
+        response_events: list[tuple[str, Any]] = await _track_agent_invocation(agent_id, agent, stream_mode=["updates", "values"], **kwargs)  # type: ignore # fmt: skip
         response_type, response = response_events[-1]
         if response_type == "values":
             # Normal response, the agent completed successfully
@@ -233,8 +308,17 @@ async def message_generator(
 
     This is the workhorse method for the /stream endpoint.
     """
+    import time
+    
     agent: AgentGraph = get_agent(agent_id)
     kwargs, run_id = await _handle_input(user_input, agent)
+
+    # Track streaming invocation
+    start_time = time.time()
+    success = False
+    confidence_score = None
+    tools_used = []
+    error_type = None
 
     try:
         # Process streamed events from the graph and yield messages over the SSE stream.
@@ -263,6 +347,27 @@ async def message_generator(
                         continue
                     updates = updates or {}
                     update_messages = updates.get("messages", [])
+                    
+                    # Track tool usage from messages
+                    for msg in update_messages:
+                        if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                            for tool_call in msg.tool_calls:
+                                if hasattr(tool_call, 'name'):
+                                    tools_used.append(tool_call.name)
+                        # Extract confidence scores from content
+                        if hasattr(msg, 'content') and msg.content and confidence_score is None:
+                            content = str(msg.content)
+                            if 'confidence' in content.lower():
+                                import re
+                                confidence_matches = re.findall(r'confidence[:\s]*([0-9.]+)', content, re.IGNORECASE)
+                                if confidence_matches:
+                                    try:
+                                        confidence_score = float(confidence_matches[0])
+                                        if confidence_score > 1:  # If percentage, convert to decimal
+                                            confidence_score = confidence_score / 100
+                                    except ValueError:
+                                        pass
+                    
                     # special cases for using langgraph-supervisor library
                     if "supervisor" in node or "sub-agent" in node:
                         # the only tools that come from the actual agent are the handoff and handback tools
@@ -332,9 +437,22 @@ async def message_generator(
                     # So we only print non-empty content.
                     yield f"data: {json.dumps({'type': 'token', 'content': convert_message_content_to_string(content)})}\n\n"
     except Exception as e:
+        error_type = type(e).__name__
         logger.error(f"Error in message generator: {e}")
         yield f"data: {json.dumps({'type': 'error', 'content': 'Internal server error'})}\n\n"
+    else:
+        success = True
     finally:
+        # Record streaming invocation metrics
+        response_time = time.time() - start_time
+        agent_evaluator.record_invocation(
+            agent_id=agent_id,
+            response_time=response_time,
+            success=success,
+            confidence_score=confidence_score,
+            tools_used=tools_used,
+            error_type=error_type
+        )
         yield "data: [DONE]\n\n"
 
 
@@ -512,6 +630,84 @@ async def health_check():
             health_status["langfuse"] = "disconnected"
 
     return health_status
+
+
+# Agent Evaluation Endpoints
+@app.get("/evaluation/system-report")
+async def get_system_evaluation_report():
+    """Get comprehensive system evaluation report."""
+    try:
+        report = agent_evaluator.generate_system_report()
+        return report.dict()
+    except Exception as e:
+        logger.error(f"Error generating system report: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate system report")
+
+
+@app.get("/evaluation/agent/{agent_id}")
+async def get_agent_evaluation(agent_id: str):
+    """Get evaluation for a specific agent."""
+    try:
+        evaluation = agent_evaluator.evaluate_agent(agent_id)
+        return evaluation.dict()
+    except Exception as e:
+        logger.error(f"Error evaluating agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to evaluate agent {agent_id}")
+
+
+@app.get("/evaluation/metrics/{agent_id}")
+async def get_agent_metrics(agent_id: str):
+    """Get raw metrics for a specific agent."""
+    try:
+        metrics = agent_evaluator.get_agent_metrics(agent_id)
+        if not metrics:
+            raise HTTPException(status_code=404, detail="Agent not found or no metrics available")
+        return metrics.dict()
+    except Exception as e:
+        logger.error(f"Error getting metrics for agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get metrics for agent {agent_id}")
+
+
+@app.post("/evaluation/reset/{agent_id}")
+async def reset_agent_metrics(agent_id: str):
+    """Reset metrics for a specific agent."""
+    try:
+        agent_evaluator.reset_metrics(agent_id)
+        return {"message": f"Metrics reset for agent {agent_id}"}
+    except Exception as e:
+        logger.error(f"Error resetting metrics for agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset metrics for agent {agent_id}")
+
+
+@app.get("/evaluation/export")
+async def export_evaluation_data(format: str = "json"):
+    """Export evaluation data in specified format."""
+    try:
+        if format.lower() not in ["json"]:
+            raise HTTPException(status_code=400, detail="Unsupported format. Only 'json' is supported.")
+        
+        export_data = agent_evaluator.export_metrics(format)
+        
+        return Response(
+            content=export_data,
+            media_type="application/json" if format.lower() == "json" else "text/plain",
+            headers={"Content-Disposition": f"attachment; filename=agent_metrics.{format.lower()}"}
+        )
+    except Exception as e:
+        logger.error(f"Error exporting evaluation data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export evaluation data")
+
+
+# Response Validation Endpoints
+@app.post("/validation/validate")
+async def validate_response_endpoint(response: dict, context: dict = None):
+    """Validate a response for accuracy and reliability."""
+    try:
+        validation_result = response_validator.validate_response(response, context or {})
+        return validation_result.dict()
+    except Exception as e:
+        logger.error(f"Error validating response: {e}")
+        raise HTTPException(status_code=500, detail="Failed to validate response")
 
 
 app.include_router(router)
