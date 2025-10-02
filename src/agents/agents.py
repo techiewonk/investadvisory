@@ -29,7 +29,7 @@ class Agent:
 
 agents: dict[str, Agent] = {
     "portfolio-agent": Agent(
-        description="A portfolio analysis specialist for client data, asset allocation, and performance tracking.",
+        description="An advanced Securities & Portfolio Analysis specialist combining deep technical analysis (RSI, MACD, Bollinger Bands) with comprehensive portfolio management, fundamental analysis, and quantitative optimization.",
         graph_like=portfolio_agent,
     ),
     "market-research-agent": Agent(

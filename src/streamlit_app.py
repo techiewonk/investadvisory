@@ -247,9 +247,10 @@ async def main() -> None:
                           f"I excel at portfolio calculations, risk analysis, financial mathematics, "
                           f"and statistical analysis. I can help with complex calculations and quantitative analysis.{client_context}")
             case "portfolio-agent":
-                welcome = (f"Hello! I'm a portfolio analysis specialist focused on client portfolio management. "
-                          f"I can analyze your holdings, track performance, assess risk, optimize asset allocation, "
-                          f"and provide personalized investment recommendations.{client_context}")
+                welcome = (f"Hello! I'm your advanced Securities & Portfolio Analysis specialist combining deep technical analysis "
+                          f"with comprehensive portfolio management. I can perform technical analysis (RSI, MACD, Bollinger Bands), "
+                          f"fundamental analysis, chart pattern recognition, securities comparison, portfolio optimization, "
+                          f"and quantitative risk analysis. Ask me to analyze individual securities or your entire portfolio!{client_context}")
             case "market-research-agent":
                 welcome = (f"Hello! I'm an advanced market research expert with comprehensive analysis capabilities. "
                           f"I can analyze SEC filings, track economic indicators, assess news sentiment, compare sector performance, "
