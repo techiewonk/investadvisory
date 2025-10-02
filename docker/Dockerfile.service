@@ -17,4 +17,9 @@ COPY src/schema/ ./schema/
 COPY src/service/ ./service/
 COPY src/run_service.py .
 
+# Copy portfolio seeding files
+COPY scripts/ ./scripts/
+COPY db_schema.sql .
+COPY portfolios.csv .
+
 CMD ["python", "run_service.py"]

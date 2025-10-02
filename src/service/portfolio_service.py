@@ -5,9 +5,8 @@ from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
-from psycopg_pool import AsyncConnectionPool
-
-from core.settings import settings
+from core.settings import DatabaseType, settings
+from memory import initialize_portfolio_database
 from schema.portfolio_schema import (
     AllClientsResponse,
     ClientSummary,
@@ -26,24 +25,63 @@ logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
-    """Service for portfolio database operations."""
+    """Generic portfolio service that works with any database connection."""
     
-    def __init__(self, connection_pool: AsyncConnectionPool):
-        self.pool = connection_pool
+    def __init__(self, db_connection: Any):
+        self.db_connection = db_connection
+    
+    def _format_query(self, query: str, param_count: int) -> str:
+        """Format query with appropriate parameter placeholders."""
+        if settings.DATABASE_TYPE == DatabaseType.POSTGRES:
+            # Replace ? with $1, $2, etc. for PostgreSQL
+            formatted_query = query
+            for i in range(1, param_count + 1):
+                formatted_query = formatted_query.replace("?", f"${i}", 1)
+            return formatted_query
+        return query
+    
+    async def _execute_query(self, query: str, params: tuple = ()) -> list[dict]:
+        """Execute a query and return results as list of dictionaries."""
+        formatted_query = self._format_query(query, len(params))
+        
+        if settings.DATABASE_TYPE == DatabaseType.POSTGRES:
+            # PostgreSQL connection pool
+            async with self.db_connection.connection() as conn:
+                rows = await conn.fetch(formatted_query, *params)
+                return [dict(row) for row in rows]
+        else:
+            # SQLite connection
+            cursor = await self.db_connection.execute(formatted_query, params)
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+    
+    async def _execute_query_one(self, query: str, params: tuple = ()) -> dict | None:
+        """Execute a query and return single result as dictionary."""
+        formatted_query = self._format_query(query, len(params))
+        
+        if settings.DATABASE_TYPE == DatabaseType.POSTGRES:
+            # PostgreSQL connection pool
+            async with self.db_connection.connection() as conn:
+                row = await conn.fetchrow(formatted_query, *params)
+                return dict(row) if row else None
+        else:
+            # SQLite connection
+            cursor = await self.db_connection.execute(formatted_query, params)
+            row = await cursor.fetchone()
+            return dict(row) if row else None
     
     async def get_user_by_client_id(self, client_id: str) -> UserProfile | None:
         """Get user by client ID."""
         query = """
             SELECT id, client_id, name, email, risk_profile, created_at
             FROM user 
-            WHERE client_id = $1
+            WHERE client_id = ?
         """
         
-        async with self.pool.connection() as conn:
-            row = await conn.fetchrow(query, client_id)
-            if row:
-                return UserProfile(**dict(row))
-            return None
+        row = await self._execute_query_one(query, (client_id,))
+        if row:
+            return UserProfile(**row)
+        return None
     
     async def get_user_portfolios(self, client_id: str) -> UserPortfoliosResponse | None:
         """Get all portfolios for a user by client ID."""
@@ -55,38 +93,37 @@ class PortfolioService:
         portfolio_query = """
             SELECT id, user_id, name, created_at
             FROM portfolio 
-            WHERE user_id = $1
+            WHERE user_id = ?
             ORDER BY created_at DESC
         """
         
+        portfolio_rows = await self._execute_query(portfolio_query, (user.id,))
         portfolios = []
-        async with self.pool.connection() as conn:
-            portfolio_rows = await conn.fetch(portfolio_query, user.id)
+        
+        for portfolio_row in portfolio_rows:
+            portfolio = Portfolio(**portfolio_row)
             
-            for portfolio_row in portfolio_rows:
-                portfolio = Portfolio(**dict(portfolio_row))
-                
-                # Get holdings for this portfolio
-                holdings = await self._get_portfolio_holdings(conn, portfolio.id)
-                
-                # Calculate totals
-                total_value = Decimal(str(sum(h.total_value for h in holdings)))
-                total_cost = Decimal(str(sum(h.average_price * h.total_quantity for h in holdings)))
-                unrealized_pnl = total_value - total_cost
-                
-                portfolio_summary = PortfolioSummary(
-                    portfolio=portfolio,
-                    user=user,
-                    holdings=holdings,
-                    total_value=total_value,
-                    total_cost=total_cost,
-                    unrealized_pnl=unrealized_pnl
-                )
-                portfolios.append(portfolio_summary)
+            # Get holdings for this portfolio
+            holdings = await self._get_portfolio_holdings(portfolio.id)
+            
+            # Calculate totals
+            total_value = Decimal(str(sum(h.total_value for h in holdings)))
+            total_cost = Decimal(str(sum(h.average_price * h.total_quantity for h in holdings)))
+            unrealized_pnl = total_value - total_cost
+            
+            portfolio_summary = PortfolioSummary(
+                portfolio=portfolio,
+                user=user,
+                holdings=holdings,
+                total_value=total_value,
+                total_cost=total_cost,
+                unrealized_pnl=unrealized_pnl
+            )
+            portfolios.append(portfolio_summary)
         
         return UserPortfoliosResponse(user=user, portfolios=portfolios)
     
-    async def _get_portfolio_holdings(self, conn: Any, portfolio_id: int) -> list[PortfolioHolding]:
+    async def _get_portfolio_holdings(self, portfolio_id: int) -> list[PortfolioHolding]:
         """Get current holdings for a portfolio."""
         holdings_query = """
             SELECT 
@@ -98,7 +135,7 @@ class PortfolioService:
                 AVG(CASE WHEN h.transaction_type = 'BUY' THEN h.price ELSE NULL END) as avg_price
             FROM history h
             JOIN security s ON h.security_id = s.id
-            WHERE h.portfolio_id = $1
+            WHERE h.portfolio_id = ?
             GROUP BY s.id, s.symbol, s.security_name, s.asset_class, s.sector, 
                      s.exchange, s.currency, s.isin, s.description
             HAVING SUM(CASE WHEN h.transaction_type = 'BUY' THEN h.quantity 
@@ -106,8 +143,8 @@ class PortfolioService:
                            ELSE 0 END) > 0
         """
         
+        rows = await self._execute_query(holdings_query, (portfolio_id,))
         holdings = []
-        rows = await conn.fetch(holdings_query, portfolio_id)
         
         for row in rows:
             security = Security(
@@ -161,9 +198,9 @@ class PortfolioService:
             FROM history h
             JOIN portfolio p ON h.portfolio_id = p.id
             JOIN security s ON h.security_id = s.id
-            WHERE p.user_id = $1
+            WHERE p.user_id = ?
             ORDER BY h.transaction_date DESC, h.id DESC
-            LIMIT $2 OFFSET $3
+            LIMIT ? OFFSET ?
         """
         
         # Get total count
@@ -171,47 +208,43 @@ class PortfolioService:
             SELECT COUNT(*) as total
             FROM history h
             JOIN portfolio p ON h.portfolio_id = p.id
-            WHERE p.user_id = $1
+            WHERE p.user_id = ?
         """
         
+        transaction_rows = await self._execute_query(transactions_query, (user.id, limit, offset))
+        count_result = await self._execute_query_one(count_query, (user.id,))
+        total_transactions = count_result['total'] if count_result else 0
+        
         transactions = []
-        async with self.pool.connection() as conn:
-            # Get transactions
-            transaction_rows = await conn.fetch(transactions_query, user.id, limit, offset)
+        for row in transaction_rows:
+            security = Security(
+                id=row['sec_id'],
+                symbol=row['symbol'],
+                security_name=row['security_name'],
+                asset_class=row['asset_class'],
+                sector=row['sector'],
+                exchange=row['exchange'],
+                currency=row['currency'],
+                isin=row['isin'],
+                description=row['description']
+            )
             
-            for row in transaction_rows:
-                security = Security(
-                    id=row['sec_id'],
-                    symbol=row['symbol'],
-                    security_name=row['security_name'],
-                    asset_class=row['asset_class'],
-                    sector=row['sector'],
-                    exchange=row['exchange'],
-                    currency=row['currency'],
-                    isin=row['isin'],
-                    description=row['description']
-                )
-                
-                transaction = Transaction(
-                    id=row['id'],
-                    portfolio_id=row['portfolio_id'],
-                    security_id=row['security_id'],
-                    transaction_type=row['transaction_type'],
-                    quantity=Decimal(str(row['quantity'])),
-                    price=Decimal(str(row['price'])),
-                    transaction_date=row['transaction_date'],
-                    notes=row['notes']
-                )
-                
-                transaction_history = TransactionHistory(
-                    transaction=transaction,
-                    security=security
-                )
-                transactions.append(transaction_history)
+            transaction = Transaction(
+                id=row['id'],
+                portfolio_id=row['portfolio_id'],
+                security_id=row['security_id'],
+                transaction_type=row['transaction_type'],
+                quantity=Decimal(str(row['quantity'])),
+                price=Decimal(str(row['price'])),
+                transaction_date=row['transaction_date'],
+                notes=row['notes']
+            )
             
-            # Get total count
-            count_row = await conn.fetchrow(count_query, user.id)
-            total_transactions = count_row['total'] if count_row else 0
+            transaction_history = TransactionHistory(
+                transaction=transaction,
+                security=security
+            )
+            transactions.append(transaction_history)
         
         return UserTransactionsResponse(
             user=user,
@@ -244,21 +277,20 @@ class PortfolioService:
             ORDER BY u.client_id
         """
         
+        rows = await self._execute_query(clients_query)
         clients = []
-        async with self.pool.connection() as conn:
-            rows = await conn.fetch(clients_query)
-            
-            for row in rows:
-                client_summary = ClientSummary(
-                    client_id=row['client_id'],
-                    name=row['name'],
-                    email=row['email'],
-                    risk_profile=row['risk_profile'],
-                    portfolio_count=row['portfolio_count'],
-                    total_portfolio_value=Decimal(str(row['total_portfolio_value'] or 0)),
-                    created_at=row['created_at']
-                )
-                clients.append(client_summary)
+        
+        for row in rows:
+            client_summary = ClientSummary(
+                client_id=row['client_id'],
+                name=row['name'],
+                email=row['email'],
+                risk_profile=row['risk_profile'],
+                portfolio_count=row['portfolio_count'],
+                total_portfolio_value=Decimal(str(row['total_portfolio_value'] or 0)),
+                created_at=row['created_at']
+            )
+            clients.append(client_summary)
         
         return AllClientsResponse(
             clients=clients,
@@ -268,29 +300,7 @@ class PortfolioService:
 
 @asynccontextmanager
 async def get_portfolio_service():
-    """Get portfolio service with database connection."""
-    # For now, use the same Postgres settings as the main service
-    # In production, you might want separate portfolio database settings
-    
-    if settings.DATABASE_TYPE.value != "postgres":
-        raise ValueError("Portfolio service requires PostgreSQL database")
-    
-    password = settings.POSTGRES_PASSWORD.get_secret_value() if settings.POSTGRES_PASSWORD else ""
-    connection_string = (
-        f"postgresql://{settings.POSTGRES_USER}:"
-        f"{password}@"
-        f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/"
-        f"{settings.POSTGRES_DB}"
-    )
-    
-    async with AsyncConnectionPool(
-        connection_string,
-        min_size=1,
-        max_size=5,
-        kwargs={"application_name": "portfolio-service"}
-    ) as pool:
-        try:
-            service = PortfolioService(pool)
-            yield service
-        finally:
-            await pool.close()
+    """Get portfolio service with database connection based on settings."""
+    async with initialize_portfolio_database() as db_connection:
+        service = PortfolioService(db_connection)
+        yield service

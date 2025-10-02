@@ -1,0 +1,70 @@
+﻿client_id,symbol,security_name,asset_class,quantity,purchase_date,Purchase Price,sector
+CLT-001,VTI,Vanguard Total Stock Market ETF,Equity ETF,3500,2024-01-16, $121.06 ,Broad Market
+CLT-001,BND,Vanguard Total Bond Market ETF,Bond ETF,8200,2019-06-10, $82.26 ,Government Bonds
+CLT-001,VXUS,Vanguard Total International Stock ETF,International Equity ETF,2800,2021-01-20, $62.91 ,International
+CLT-001,VYM,Vanguard High Dividend Yield ETF,Dividend ETF,4100,2018-09-05, $87.15 ,Dividend Stocks
+CLT-001,VTEB,Vanguard Tax-Exempt Bond ETF,Municipal Bond ETF,3600,2022-02-14, $53.13 ,Municipal Bonds
+CLT-001,CASH,Money Market Fund,Cash Equivalent,160050,2024-01-16, $50.77 ,Cash
+CLT-002,QQQ,Invesco QQQ Trust ETF,Technology ETF,850,2021-11-08, $398.57 ,Technology
+CLT-002,NVDA,NVIDIA Corporation,Individual Stock,200,2024-01-16, $55.02 ,Semiconductors
+CLT-002,MSFT,Microsoft Corporation,Individual Stock,180,2020-04-20, $176.63 ,Technology
+CLT-002,ARKK,ARK Innovation ETF,Growth ETF,1200,2021-02-10, $157.20 ,Innovation
+CLT-002,VEA,Vanguard FTSE Developed Markets ETF,International ETF,1800,2023-01-12, $44.53 ,International
+CLT-002,TSLA,Tesla Inc,Individual Stock,85,2023-05-25, $186.54 ,Electric Vehicles
+CLT-002,CASH,High-Yield Savings,Cash Equivalent,55429,2024-03-01, $50.72 ,Cash
+CLT-003,SPY,SPDR S&P 500 ETF Trust,Large Cap ETF,650,2019-08-14, $288.07 ,Broad Market
+CLT-003,AGG,iShares Core U.S. Aggregate Bond ETF,Bond ETF,1150,2020-05-18, $116.97 ,Investment Grade Bonds
+CLT-003,EFA,iShares MSCI EAFE ETF,International ETF,420,2022-06-30, $61.71 ,International Developed
+CLT-003,VWO,Vanguard FTSE Emerging Markets ETF,Emerging Markets ETF,580,2021-09-22, $50.52 ,Emerging Markets
+CLT-003,CASH,Money Market,Cash Equivalent,26561,2024-01-10, $50.28 ,Cash
+CLT-004,VTI,Vanguard Total Stock Market ETF,Broad Market ETF,420,2022-01-05, $242.08 ,Broad Market
+CLT-004,SCHG,Schwab U.S. Large-Cap Growth ETF,Growth ETF,350,2024-01-16, $20.85 ,Large Cap Growth
+CLT-004,VXUS,Vanguard Total International Stock ETF,International ETF,680,2024-01-16, $56.66 ,International
+CLT-004,VB,Vanguard Small-Cap ETF,Small Cap ETF,180,2022-11-08, $185.81 ,Small Cap
+CLT-004,BND,Vanguard Total Bond Market ETF,Bond ETF,240,2024-01-16, $73.21 ,Government Bonds
+CLT-004,CASH,High-Yield Savings,Cash Equivalent,9927,2024-02-15, $51.21 ,Cash
+CLT-005,AAPL,Apple Inc,Individual Stock,850,2021-03-15, $121.41 ,Technology
+CLT-005,MSFT,Microsoft Corporation,Individual Stock,400,2020-08-20, $209.54 ,Technology
+CLT-005,GOOGL,Alphabet Inc Class A,Individual Stock,650,2022-01-10, $135.08 ,Technology
+CLT-005,NVDA,NVIDIA Corporation,Individual Stock,150,2023-02-14, $21.58 ,Semiconductors
+CLT-005,META,Meta Platforms Inc,Individual Stock,180,2022-11-08, $95.92 ,Technology
+CLT-005,AMZN,Amazon.com Inc,Individual Stock,400,2021-07-22, $179.36 ,Consumer Discretionary
+CLT-005,TSLA,Tesla Inc,Individual Stock,85,2024-01-16, $215.10 ,Consumer Discretionary
+CLT-005,CRM,Salesforce Inc,Individual Stock,250,2022-04-18, $188.30 ,Technology
+CLT-005,ADBE,Adobe Inc,Individual Stock,120,2024-01-16, $592.83 ,Technology
+CLT-005,NFLX,Netflix Inc,Individual Stock,140,2020-10-12, $548.81 ,Communication Services
+CLT-005,SNOW,Snowflake Inc,Individual Stock,400,2023-01-25, $138.27 ,Technology
+CLT-005,CASH,High-Yield Savings,Cash Equivalent,53190,2024-04-01, $50.46 ,Cash
+CLT-007,BRK.B,Berkshire Hathaway Inc Class B,Individual Stock,180,2022-08-15, $298.64 ,Financials
+CLT-007,BAC,Bank of America Corp,Individual Stock,2200,2023-10-20, $26.80 ,Financials
+CLT-007,XOM,Exxon Mobil Corporation,Individual Stock,650,2022-12-08, $106.28 ,Energy
+CLT-007,CVX,Chevron Corporation,Individual Stock,480,2023-01-18, $180.82 ,Energy
+CLT-007,WMT,Walmart Inc,Individual Stock,420,2021-05-12, $46.29 ,Consumer Staples
+CLT-007,T,AT&T Inc,Individual Stock,3200,2024-01-25, $16.77 ,Communication Services
+CLT-007,INTC,Intel Corporation,Individual Stock,2800,2023-06-14, $33.87 ,Technology
+CLT-007,F,Ford Motor Company,Individual Stock,5800,2023-09-22, $12.30 ,Consumer Discretionary
+CLT-007,CASH,Money Market Fund,Cash Equivalent,19429,2024-05-10, $54.11 ,Cash
+CLT-009,SHOP,Shopify Inc Class A,Individual Stock,450,2024-01-16, $80.28 ,Technology
+CLT-009,ROKU,Roku Inc,Individual Stock,650,2024-01-16, $85.07 ,Communication Services
+CLT-009,PLTR,Palantir Technologies Inc,Individual Stock,1200,2023-11-08, $18.85 ,Technology
+CLT-009,NET,Cloudflare Inc,Individual Stock,420,2024-01-22, $83.88 ,Technology
+CLT-009,CRWD,CrowdStrike Holdings Inc,Individual Stock,120,2024-01-16, $279.39 ,Technology
+CLT-009,ZM,Zoom Video Communications Inc,Individual Stock,520,2022-12-05, $74.26 ,Technology
+CLT-009,TWLO,Twilio Inc,Individual Stock,580,2023-04-10, $59.69 ,Technology
+CLT-009,DDOG,Datadog Inc,Individual Stock,280,2023-09-25, $87.84 ,Technology
+CLT-009,SNOW,Snowflake Inc,Individual Stock,220,2024-02-14, $230.00 ,Technology
+CLT-009,PATH,UiPath Inc,Individual Stock,2800,2023-12-18, $25.00 ,Technology
+CLT-009,CASH,High-Yield Savings,Cash Equivalent,91550,2024-07-15, $59.75 ,Cash
+CLT-010,VSGX,Vanguard ESG International Stock ETF,ESG ETF,1200,2022-06-15, $49.63 ,International
+CLT-010,ESGD,iShares MSCI EAFE ESG Select ETF,ESG ETF,850,2021-09-20, $79.16 ,International
+CLT-010,ICLN,iShares Global Clean Energy ETF,Clean Energy ETF,3200,2023-01-30, $20.29 ,Clean Energy
+CLT-010,PBW,Invesco WilderHill Clean Energy ETF,Clean Energy ETF,900,2022-11-25, € 3.48 ,Clean Energy
+CLT-010,TSLA,Tesla Inc,Individual Stock,65,2023-03-22, $199.30 ,Electric Vehicles
+CLT-010,NEE,NextEra Energy Inc,Individual Stock,650,2021-04-12, $77.78 ,Utilities
+CLT-010,ENPH,Enphase Energy Inc,Individual Stock,480,2022-07-18, $199.61 ,Clean Energy
+CLT-010,JNJ,Johnson & Johnson,Individual Stock,310,2020-01-15, $146.40 ,Healthcare
+CLT-010,UNH,UnitedHealth Group Inc,Individual Stock,75,2021-11-30, $447.06 ,Healthcare
+CLT-010,MSFT,Microsoft Corporation,Individual Stock,110,2022-05-25, $258.14 ,Technology
+CLT-010,AAPL,Apple Inc,Individual Stock,195,2021-08-10, $146.44 ,Technology
+CLT-010,PG,The Procter & Gamble Company,Individual Stock,250,2020-09-18, $136.91 ,Consumer Staples
+CLT-010,CASH,Money Market Fund,Cash Equivalent,41066,2024-03-15, $47.57 ,Cash

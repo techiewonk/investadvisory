@@ -74,6 +74,25 @@ async def get_postgres_saver():
 
 
 @asynccontextmanager
+async def get_postgres_connection_pool():
+    """Get a PostgreSQL connection pool for portfolio service."""
+    validate_postgres_config()
+    application_name = settings.POSTGRES_APPLICATION_NAME + "-" + "portfolio"
+
+    async with AsyncConnectionPool(
+        get_postgres_connection_string(),
+        min_size=1,
+        max_size=5,
+        kwargs={"autocommit": True, "row_factory": dict_row, "application_name": application_name},
+        check=AsyncConnectionPool.check_connection,
+    ) as pool:
+        try:
+            yield pool
+        finally:
+            await pool.close()
+
+
+@asynccontextmanager
 async def get_postgres_store():
     """
     Get a PostgreSQL store instance based on a connection pool for more resilent connections.
@@ -98,5 +117,24 @@ async def get_postgres_store():
             store = AsyncPostgresStore(pool)
             await store.setup()
             yield store
+        finally:
+            await pool.close()
+
+
+@asynccontextmanager
+async def get_postgres_connection_pool():
+    """Get a PostgreSQL connection pool for portfolio service."""
+    validate_postgres_config()
+    application_name = settings.POSTGRES_APPLICATION_NAME + "-" + "portfolio"
+
+    async with AsyncConnectionPool(
+        get_postgres_connection_string(),
+        min_size=1,
+        max_size=5,
+        kwargs={"autocommit": True, "row_factory": dict_row, "application_name": application_name},
+        check=AsyncConnectionPool.check_connection,
+    ) as pool:
+        try:
+            yield pool
         finally:
             await pool.close()

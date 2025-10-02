@@ -6,7 +6,7 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-agent_service}
+      - POSTGRES_DB=${POSTGRES_DB:-investadvisory}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,6 +23,9 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      # Enable portfolio seeding in Docker environment
+      - SEED_PORTFOLIO_DB=${SEED_PORTFOLIO_DB:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,6 +54,15 @@ services:
         - path: src/memory/
           action: sync+restart
           target: /app/memory/
+        - path: scripts/
+          action: sync+restart
+          target: /app/scripts/
+        - path: portfolios.csv
+          action: sync+restart
+          target: /app/portfolios.csv
+        - path: db_schema.sql
+          action: sync+restart
+          target: /app/db_schema.sql
   streamlit_app:
     build:
       context: .

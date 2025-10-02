@@ -16,6 +16,7 @@ classifiers = [
 requires-python = ">=3.11"
 
 dependencies = [
+    "aiosqlite ~=0.20.0",
     "docx2txt ~=0.8",
     "duckduckgo-search>=7.3.0",
     "fastapi ~=0.115.5",
