@@ -560,18 +560,19 @@ async def handle_sub_agent_msgs(messages_agen, status, is_new):
         # Read next message
         sub_msg = await anext(messages_agen)
 
-        # this should only happen is skip_stream flag is removed
-        # if isinstance(sub_msg, str):
-        #     continue
+        # Handle string messages (can happen with hierarchical supervisors)
+        if isinstance(sub_msg, str):
+            continue
 
         if is_new:
             st.session_state.messages.append(sub_msg)
 
         # Handle tool results with nested popovers
-        if sub_msg.type == "tool" and sub_msg.tool_call_id in nested_popovers:
+        if hasattr(sub_msg, 'type') and sub_msg.type == "tool" and hasattr(sub_msg, 'tool_call_id') and sub_msg.tool_call_id in nested_popovers:
             popover = nested_popovers[sub_msg.tool_call_id]
             popover.write("**Output:**")
-            popover.write(sub_msg.content)
+            if hasattr(sub_msg, 'content'):
+                popover.write(sub_msg.content)
             continue
 
         # Handle transfer_back_to tool calls - these indicate a sub-agent is returning control
@@ -595,7 +596,7 @@ async def handle_sub_agent_msgs(messages_agen, status, is_new):
 
         # Display content and tool calls in the same nested status
         if status:
-            if sub_msg.content:
+            if hasattr(sub_msg, 'content') and sub_msg.content:
                 status.write(sub_msg.content)
 
             if hasattr(sub_msg, "tool_calls") and sub_msg.tool_calls:
