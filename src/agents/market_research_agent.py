@@ -30,9 +30,11 @@ current_date = datetime.now().strftime("%B %d, %Y")
 web_search = DuckDuckGoSearchResults(name="WebSearch")
 # Market research agent focuses on market analysis, not client portfolio analysis
 # Only include portfolio tools that are relevant for market research context
+# SECURITY: Exclude get_all_clients to prevent security violations
+# Use get_selected_client_transactions as primary source (contains actual holdings with latest history)
 relevant_portfolio_tools = [
     tool for tool in PORTFOLIO_TOOLS 
-    if tool.name in ['get_all_clients', 'get_selected_client_portfolios', 'get_selected_client_transactions']
+    if tool.name in ['get_selected_client_transactions']
 ]
 research_tools = [web_search, calculator] + relevant_portfolio_tools + ADVANCED_MARKET_RESEARCH_TOOLS
 
@@ -83,25 +85,46 @@ Advanced Tools Available:
 - Weather data for sector-specific analysis (agriculture, energy, commodities)
 - Calculator for financial computations
 
-**Client Context (when available):**
-- get_all_clients: See available clients for context
-- get_selected_client_portfolios: View client holdings for market context
-- get_selected_client_transactions: Review client transaction history for market insights
+**Client Holdings Research:**
+- get_selected_client_transactions: Access actual client holdings with latest transaction history
+- This provides the most current and accurate view of client positions and trading activity
+
+**Holdings Research Behavior:**
+- When a client is selected in the UI: Use get_selected_client_transactions to get their holdings and transaction history
+- When no client is selected: Provide general market research and analysis without client-specific data
+- If client transactions are available: Analyze the securities to identify current positions and recent trading patterns
+- Research holdings to provide market insights, investment recommendations, and trend analysis
+- Focus on market trends, sector analysis, and company fundamentals
+- SECURITY: Never call get_all_clients - this is a security violation
+
+**Client Selection Handling:**
+- Check if a client is selected before calling get_selected_client_transactions
+- If no client selected: Provide general market analysis, economic indicators, sector performance, and market trends
+- If client selected: Include client-specific holdings analysis in addition to general market research
+- Always provide valuable market insights regardless of client selection status
 
 **Important Tool Usage Guidelines:**
 - For company analysis: Use get_company_fundamentals (not portfolio analysis tools)
 - For market research: Use market research tools (economic indicators, news sentiment, sector performance)
+- For holdings research: Use get_selected_client_transactions to get actual holdings with latest history, then research the individual securities
 - For client portfolio analysis: Delegate to portfolio specialist agent
 - For complex calculations: Delegate to math specialist agent
 
 **Analysis Framework:**
 1. Start with macro environment (economic indicators)
 2. Analyze sector dynamics and performance  
-3. Research specific companies (company fundamentals, financial ratios, SEC filings)
-4. Assess news sentiment and market psychology
-5. Apply technical analysis for timing
-6. Identify risks and opportunities
-7. Provide actionable investment insights with quantified metrics
+3. Check client selection status:
+   - If client selected: Use get_selected_client_transactions to get holdings and transaction history
+   - If no client selected: Focus on general market analysis and trends
+4. Research specific companies:
+   - From client holdings (if available) OR general market leaders/trends
+   - Use company fundamentals, financial ratios, SEC filings
+5. Assess news sentiment and market psychology
+6. Apply technical analysis for timing and entry/exit points
+7. Identify risks and opportunities based on market conditions (and positions if available)
+8. Provide actionable investment insights:
+   - Client-specific recommendations (if client selected)
+   - General market insights and opportunities (if no client selected)
 
 NOTE: THE USER CAN'T SEE THE TOOL RESPONSE.
 

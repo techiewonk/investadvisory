@@ -1,10 +1,10 @@
 """Portfolio tools for investment advisory agents."""
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolArg, tool
 
 # Lazy import to avoid circular dependency - imported in functions when needed
 
@@ -13,10 +13,14 @@ logger = logging.getLogger(__name__)
 
 def get_selected_client_id(config: RunnableConfig | None = None) -> str | None:
     """Extract selected client ID from agent config."""
-    if not config or not config.get("configurable"):
+    if not config:
         return None
     
-    selected_client = config["configurable"].get("selected_client")
+    configurable = getattr(config, "configurable", None)
+    if not configurable:
+        return None
+    
+    selected_client = configurable.get("selected_client")
     if selected_client and isinstance(selected_client, dict):
         return selected_client.get("client_id")
     
@@ -217,7 +221,9 @@ async def analyze_client_portfolio_performance(client_id: str) -> dict[str, Any]
 
 # List of all portfolio tools for easy import
 @tool
-async def get_selected_client_portfolios(config: RunnableConfig | None = None) -> dict[str, Any]:
+async def get_selected_client_portfolios(
+    config: Annotated[RunnableConfig | None, InjectedToolArg] = None
+) -> dict[str, Any]:
     """
     Get portfolio information for the currently selected client.
     This tool automatically uses the client selected in the UI.
@@ -235,7 +241,10 @@ async def get_selected_client_portfolios(config: RunnableConfig | None = None) -
 
 
 @tool
-async def get_selected_client_transactions(limit: int = 10, config: RunnableConfig | None = None) -> dict[str, Any]:
+async def get_selected_client_transactions(
+    limit: int = 10, 
+    config: Annotated[RunnableConfig | None, InjectedToolArg] = None
+) -> dict[str, Any]:
     """
     Get transaction history for the currently selected client.
     This tool automatically uses the client selected in the UI.
@@ -256,7 +265,9 @@ async def get_selected_client_transactions(limit: int = 10, config: RunnableConf
 
 
 @tool
-async def analyze_selected_client_performance(config: RunnableConfig | None = None) -> dict[str, Any]:
+async def analyze_selected_client_performance(
+    config: Annotated[RunnableConfig | None, InjectedToolArg] = None
+) -> dict[str, Any]:
     """
     Perform comprehensive portfolio analysis for the currently selected client.
     This tool automatically uses the client selected in the UI.
