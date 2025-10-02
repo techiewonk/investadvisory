@@ -204,7 +204,7 @@ def workflow(chosen_model):
             f"- analysis_team (supervisor): Mathematical calculations and portfolio analysis "
             f"  - math_expert: Financial calculations, risk metrics, statistical analysis "
             f"  - portfolio_expert: Client portfolio analysis, performance tracking, "
-            f"asset allocation "
+            f"asset allocation, risk metrics, portfolio optimization "
             f"Routing guidelines: "
             f"- For market research, news, or general investment information → research_expert "
             f"- For client portfolio analysis or mathematical calculations → analysis_team "

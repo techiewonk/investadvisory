@@ -302,11 +302,183 @@ async def analyze_selected_client_performance(
     return await analyze_client_portfolio_performance.ainvoke({"client_id": client_id})
 
 
+@tool
+async def analyze_portfolio_by_market_cap(client_id: str) -> dict[str, Any]:
+    """
+    Analyze client portfolio breakdown by market capitalization categories.
+    
+    Args:
+        client_id: The client's unique identifier (e.g., 'CLT-001')
+        
+    Returns:
+        Dictionary containing market cap analysis and allocation breakdown
+    """
+    try:
+        from service.portfolio_service import get_portfolio_service
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_user_portfolios(client_id)
+            if not result:
+                return {"error": f"Client with ID '{client_id}' not found"}
+            
+            # Market cap categorization based on stock price estimation
+            # Note: In production, use real market cap data from financial APIs
+            
+            market_cap_analysis = {
+                "client_id": client_id,
+                "total_portfolio_value": 0,
+                "market_cap_breakdown": {
+                    "large_cap": {"value": 0, "percentage": 0, "holdings": []},
+                    "mid_cap": {"value": 0, "percentage": 0, "holdings": []},
+                    "small_cap": {"value": 0, "percentage": 0, "holdings": []},
+                    "unknown": {"value": 0, "percentage": 0, "holdings": []}
+                }
+            }
+            
+            total_value = 0
+            for portfolio in result.portfolios:
+                total_value += float(portfolio.total_value)
+                
+                for holding in portfolio.holdings:
+                    holding_value = float(holding.total_value)
+                    holding_info = {
+                        "symbol": holding.security.symbol,
+                        "name": holding.security.security_name,
+                        "value": holding_value,
+                        "quantity": float(holding.total_quantity),
+                        "sector": holding.security.sector
+                    }
+                    
+                    # Estimate market cap based on stock price and typical metrics
+                    # This is a simplified approach - in production, you'd get real market cap data
+                    estimated_market_cap = None
+                    if holding.total_quantity > 0:
+                        price_per_share = holding_value / float(holding.total_quantity)
+                        # Rough estimation - this would need real market cap data in production
+                        if price_per_share > 100:  # High price stocks often large cap
+                            estimated_market_cap = "large_cap"
+                        elif price_per_share > 20:  # Mid-range price
+                            estimated_market_cap = "mid_cap"
+                        else:  # Lower price stocks
+                            estimated_market_cap = "small_cap"
+                    
+                    # Categorize by estimated market cap
+                    category = estimated_market_cap or "unknown"
+                    market_cap_analysis["market_cap_breakdown"][category]["value"] += holding_value
+                    market_cap_analysis["market_cap_breakdown"][category]["holdings"].append(holding_info)
+            
+            # Calculate percentages
+            market_cap_analysis["total_portfolio_value"] = total_value
+            for category in market_cap_analysis["market_cap_breakdown"]:
+                category_value = market_cap_analysis["market_cap_breakdown"][category]["value"]
+                percentage = (category_value / total_value * 100) if total_value > 0 else 0
+                market_cap_analysis["market_cap_breakdown"][category]["percentage"] = round(percentage, 2)
+            
+            return market_cap_analysis
+            
+    except Exception as e:
+        logger.error(f"Error analyzing portfolio by market cap: {e}")
+        return {"error": f"Failed to analyze market cap breakdown: {str(e)}"}
+
+
+@tool
+async def get_individual_stock_performance(client_id: str, symbol: str) -> dict[str, Any]:
+    """
+    Get performance analysis for a specific stock in the client's portfolio.
+    
+    Args:
+        client_id: The client's unique identifier (e.g., 'CLT-001')
+        symbol: Stock symbol to analyze (e.g., 'AAPL')
+        
+    Returns:
+        Dictionary containing individual stock performance and metrics
+    """
+    try:
+        from service.portfolio_service import get_portfolio_service
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_user_portfolios(client_id)
+            if not result:
+                return {"error": f"Client with ID '{client_id}' not found"}
+            
+            # Find the specific stock across all portfolios
+            stock_holdings = []
+            for portfolio in result.portfolios:
+                for holding in portfolio.holdings:
+                    if holding.security.symbol.upper() == symbol.upper():
+                        stock_holdings.append({
+                            "portfolio_name": portfolio.portfolio.name,
+                            "symbol": holding.security.symbol,
+                            "security_name": holding.security.security_name,
+                            "quantity": float(holding.total_quantity),
+                            "total_value": float(holding.total_value),
+                            "sector": holding.security.sector
+                        })
+            
+            if not stock_holdings:
+                return {"error": f"Stock '{symbol}' not found in client's portfolio"}
+            
+            # Calculate total position across all portfolios
+            total_quantity = sum(h["quantity"] for h in stock_holdings)
+            total_value = sum(h["total_value"] for h in stock_holdings)
+            current_price = total_value / total_quantity if total_quantity > 0 else 0
+            
+            # Get transaction history for this stock to calculate returns
+            transactions_result = await portfolio_service.get_user_transactions(client_id, limit=100, offset=0)
+            stock_transactions = []
+            
+            if transactions_result:
+                for t in transactions_result.transactions:
+                    if t.security.symbol.upper() == symbol.upper():
+                        stock_transactions.append({
+                            "date": t.transaction.transaction_date.isoformat(),
+                            "type": t.transaction.transaction_type,
+                            "quantity": float(t.transaction.quantity),
+                            "price": float(t.transaction.price),
+                            "total_amount": float(t.transaction.quantity * t.transaction.price)
+                        })
+            
+            # Calculate cost basis and returns
+            total_cost = 0
+            total_shares_bought = 0
+            
+            for transaction in stock_transactions:
+                if transaction["type"].lower() in ["buy", "purchase"]:
+                    total_cost += transaction["total_amount"]
+                    total_shares_bought += transaction["quantity"]
+            
+            average_cost_basis = total_cost / total_shares_bought if total_shares_bought > 0 else 0
+            unrealized_pnl = total_value - total_cost
+            return_percentage = (unrealized_pnl / total_cost * 100) if total_cost > 0 else 0
+            
+            return {
+                "client_id": client_id,
+                "symbol": symbol.upper(),
+                "security_name": stock_holdings[0]["security_name"],
+                "sector": stock_holdings[0]["sector"],
+                "position_summary": {
+                    "total_quantity": total_quantity,
+                    "current_price": round(current_price, 2),
+                    "total_market_value": round(total_value, 2),
+                    "average_cost_basis": round(average_cost_basis, 2),
+                    "total_cost": round(total_cost, 2),
+                    "unrealized_pnl": round(unrealized_pnl, 2),
+                    "return_percentage": round(return_percentage, 2)
+                },
+                "holdings_by_portfolio": stock_holdings,
+                "transaction_history": stock_transactions
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting individual stock performance: {e}")
+        return {"error": f"Failed to analyze stock performance: {str(e)}"}
+
+
 PORTFOLIO_TOOLS = [
     get_all_clients,
     get_client_portfolios,
     get_client_transactions,
     analyze_client_portfolio_performance,
+    analyze_portfolio_by_market_cap,
+    get_individual_stock_performance,
     # NOTE: InjectedToolArg tools removed - they don't work with create_react_agent
     # Use explicit client_id parameters instead
     # get_selected_client_portfolios,  # Doesn't work - InjectedToolArg issue
