@@ -57,6 +57,20 @@ dependencies = [
     "tiktoken >=0.8.0",
     "uvicorn ~=0.32.1",
     "langchain-mcp-adapters>=0.1.10",
+    # Production API integrations for market research
+    "yfinance ~=0.2.48",
+    "fredapi ~=0.5.2", 
+    "newsapi-python ~=0.2.7",
+    "requests ~=2.32.3",
+    "requests-cache ~=1.2.1",
+    "aiohttp ~=3.11.10",
+    "aiofiles ~=24.1.0",
+    "tenacity ~=9.0.0",
+    "python-dateutil ~=2.9.0",
+    "beautifulsoup4 ~=4.12.3",
+    "lxml ~=5.3.0",
+    # Advanced mathematical libraries for enhanced math agent
+    "scipy ~=1.14.1",
 ]
 
 [dependency-groups]

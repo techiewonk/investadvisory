@@ -103,6 +103,13 @@ class Settings(BaseSettings):
 
     OPENWEATHERMAP_API_KEY: SecretStr | None = None
 
+    # Market Research API Keys
+    FRED_API_KEY: SecretStr | None = None
+    NEWS_API_KEY: SecretStr | None = None
+    ALPHA_VANTAGE_API_KEY: SecretStr | None = None
+    FINANCIAL_MODELING_PREP_API_KEY: SecretStr | None = None
+    IEX_CLOUD_API_KEY: SecretStr | None = None
+
     # MCP Configuration
     GITHUB_PAT: SecretStr | None = None
     MCP_GITHUB_SERVER_URL: str = "https://api.githubcopilot.com/mcp/"

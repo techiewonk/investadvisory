@@ -251,9 +251,10 @@ async def main() -> None:
                           f"I can analyze your holdings, track performance, assess risk, optimize asset allocation, "
                           f"and provide personalized investment recommendations.{client_context}")
             case "market-research-agent":
-                welcome = (f"Hello! I'm a market research expert specializing in investment analysis. "
-                          f"I can research market trends, analyze companies and sectors, track economic indicators, "
-                          f"and identify investment opportunities.{client_context}")
+                welcome = (f"Hello! I'm an advanced market research expert with comprehensive analysis capabilities. "
+                          f"I can analyze SEC filings, track economic indicators, assess news sentiment, compare sector performance, "
+                          f"provide technical analysis, and monitor earnings calendars. I combine fundamental, technical, and "
+                          f"sentiment analysis to identify investment opportunities and risks.{client_context}")
             case "supervisor-agent":
                 welcome = (f"Hello! I'm your advanced AI investment advisory team with specialized "
                           f"experts in market research, portfolio analysis, and mathematical calculations. "
