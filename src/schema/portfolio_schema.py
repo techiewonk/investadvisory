@@ -141,6 +141,7 @@ class ClientSummary(BaseModel):
     email: str | None = Field(description="Client email", default=None)
     risk_profile: str | None = Field(description="Risk profile", default=None)
     portfolio_count: int = Field(description="Number of portfolios")
+    holdings_count: int = Field(description="Total number of unique holdings across all portfolios")
     total_portfolio_value: Decimal = Field(description="Total value across all portfolios")
     created_at: datetime = Field(description="Account creation date")
 

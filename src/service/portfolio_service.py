@@ -257,7 +257,8 @@ class PortfolioService:
         clients_query = """
             SELECT 
                 u.id, u.client_id, u.name, u.email, u.risk_profile, u.created_at,
-                COUNT(p.id) as portfolio_count,
+                COUNT(DISTINCT p.id) as portfolio_count,
+                COUNT(DISTINCT holdings.security_id) as holdings_count,
                 COALESCE(SUM(portfolio_values.total_value), 0) as total_portfolio_value
             FROM user u
             LEFT JOIN portfolio p ON u.id = p.user_id
@@ -273,6 +274,17 @@ class PortfolioService:
                 LEFT JOIN history h ON p.id = h.portfolio_id
                 GROUP BY p.id
             ) portfolio_values ON p.id = portfolio_values.portfolio_id
+            LEFT JOIN (
+                SELECT 
+                    p.id as portfolio_id,
+                    h.security_id
+                FROM portfolio p
+                JOIN history h ON p.id = h.portfolio_id
+                GROUP BY p.id, h.security_id
+                HAVING SUM(CASE WHEN h.transaction_type = 'BUY' THEN h.quantity 
+                               WHEN h.transaction_type = 'SELL' THEN -h.quantity 
+                               ELSE 0 END) > 0
+            ) holdings ON p.id = holdings.portfolio_id
             GROUP BY u.id, u.client_id, u.name, u.email, u.risk_profile, u.created_at
             ORDER BY u.client_id
         """
@@ -287,6 +299,7 @@ class PortfolioService:
                 email=row['email'],
                 risk_profile=row['risk_profile'],
                 portfolio_count=row['portfolio_count'],
+                holdings_count=row['holdings_count'] or 0,
                 total_portfolio_value=Decimal(str(row['total_portfolio_value'] or 0)),
                 created_at=row['created_at']
             )

@@ -7,10 +7,10 @@ from collections.abc import AsyncGenerator
 import streamlit as st
 from dotenv import load_dotenv
 from pydantic import ValidationError
-from schema.task_data import TaskData, TaskDataStatus
 
 from client import AgentClient, AgentClientError
 from schema import ChatHistory, ChatMessage
+from schema.task_data import TaskData, TaskDataStatus
 
 # The app has three main functions which are all run async:
 
@@ -136,6 +136,65 @@ async def main() -> None:
             # Display user ID (for debugging or user information)
             st.text_input("User ID (read-only)", value=user_id, disabled=True)
 
+            # Portfolio client selection
+            try:
+                import httpx
+                with st.spinner("Loading portfolio clients..."):
+                    # Get portfolio clients from the API
+                    response = httpx.get(f"{agent_client.base_url}/portfolio/clients", timeout=10.0)
+                    if response.status_code == 200:
+                        clients_data = response.json()
+                        clients = clients_data.get("clients", [])
+                        
+                        if clients:
+                            # Create options for selectbox
+                            client_options = ["None (No client selected)"] + [
+                                f"{client['client_id']} - {client['name'] or 'No name'} "
+                                f"({client['holdings_count']} holdings)"
+                                for client in clients
+                            ]
+
+                            # Get current selection from session state
+                            current_selection = st.session_state.get("selected_client_idx", 0)
+
+                            selected_idx = st.selectbox(
+                                "Portfolio Client",
+                                options=range(len(client_options)),
+                                format_func=lambda x: client_options[x],
+                                index=current_selection,
+                                help="Select a client to analyze their portfolio data"
+                            )
+
+                            # Store selection in session state
+                            st.session_state.selected_client_idx = selected_idx
+
+                            # Store selected client data for use by agents
+                            if selected_idx > 0:  # Not "None"
+                                selected_client = clients[selected_idx - 1]
+                                st.session_state.selected_client = selected_client
+                                
+                                # Display client info
+                                with st.expander("📊 Client Portfolio Summary", expanded=False):
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("Client ID", selected_client["client_id"])
+                                        st.metric("Holdings", selected_client["holdings_count"])
+                                    with col2:
+                                        total_value = selected_client['total_portfolio_value']
+                                        st.metric("Total Value", f"${total_value:,.2f}")
+                                        risk_profile = selected_client.get("risk_profile") or "Not set"
+                                        st.metric("Risk Profile", risk_profile)
+                            else:
+                                st.session_state.selected_client = None
+                        else:
+                            st.info("No portfolio clients found. Make sure the portfolio database is seeded.")
+                    else:
+                        status_msg = f"Could not load portfolio clients (Status: {response.status_code})"
+                        st.warning(status_msg)
+            except Exception as e:
+                st.warning(f"Portfolio client selection unavailable: {str(e)}")
+                st.session_state.selected_client = None
+
 
 
         @st.dialog("Share/resume chat")
@@ -162,21 +221,43 @@ async def main() -> None:
     messages: list[ChatMessage] = st.session_state.messages
 
     if len(messages) == 0:
+        # Check if a portfolio client is selected
+        selected_client = st.session_state.get("selected_client")
+        client_context = ""
+        if selected_client:
+            client_name = selected_client.get('name', 'No name')
+            total_value = selected_client['total_portfolio_value']
+            client_context = (f"\n\n**Current Client:** {selected_client['client_id']} - "
+                            f"{client_name} (${total_value:,.2f} total value)")
+
         match agent_client.agent:
             case "chatbot":
-                WELCOME = "Hello! I'm a simple chatbot. Ask me anything!"
+                welcome = (f"Hello! I'm your investment advisory chatbot. I can help analyze "
+                          f"portfolios and provide financial insights.{client_context}")
             case "interrupt-agent":
-                WELCOME = "Hello! I'm an interrupt agent. Tell me your birthday and I will predict your personality!"
+                welcome = (f"Hello! I'm an interrupt agent specialized in investment advisory. "
+                          f"I can analyze client portfolios and provide personalized "
+                          f"recommendations.{client_context}")
             case "research-assistant":
-                WELCOME = "Hello! I'm an AI-powered research assistant with web search and a calculator. Ask me anything!"
+                welcome = (f"Hello! I'm an AI-powered investment research assistant with web "
+                          f"search and calculator capabilities. I can research market trends, "
+                          f"analyze securities, and provide investment insights.{client_context}")
             case "rag-assistant":
-                WELCOME = """Hello! I'm an AI-powered Company Policy & HR assistant with access to AcmeTech's Employee Handbook.
-                I can help you find information about benefits, remote work, time-off policies, company values, and more. Ask me anything!"""
+                welcome = (f"Hello! I'm an AI-powered investment advisory assistant with access "
+                          f"to portfolio data and financial analysis tools. I can help you "
+                          f"analyze client portfolios, research investments, calculate returns, "
+                          f"and provide personalized recommendations.{client_context}")
             case _:
-                WELCOME = "Hello! I'm an AI agent. Ask me anything!"
+                welcome = (f"Hello! I'm an AI investment advisor. I can help analyze portfolios, "
+                          f"research securities, and provide financial guidance.{client_context}")
+
+        # Add instruction about client selection if none is selected
+        if not selected_client:
+            welcome += ("\n\n💡 **Tip:** Select a portfolio client in the Settings panel "
+                       "to get personalized analysis and recommendations.")
 
         with st.chat_message("ai"):
-            st.write(WELCOME)
+            st.write(welcome)
 
     # draw_messages() expects an async iterator over messages
     async def amessage_iter() -> AsyncGenerator[ChatMessage, None]:
@@ -187,12 +268,26 @@ async def main() -> None:
 
     # Generate new message if the user provided new input
     if user_input := st.chat_input():
+        # Prepare the message with optional client context
+        selected_client = st.session_state.get("selected_client")
+        if selected_client:
+            # Add client context to the message for the agent
+            enhanced_input = f"""User Query: {user_input}
+
+Selected Portfolio Client: {selected_client['client_id']} - {selected_client.get('name', 'No name')}
+Holdings Count: {selected_client['holdings_count']}
+Total Portfolio Value: ${selected_client['total_portfolio_value']:,.2f}
+Risk Profile: {selected_client.get('risk_profile', 'Not set')}
+
+Please use the portfolio tools to analyze this client's data and provide relevant insights."""
+        else:
+            enhanced_input = user_input
         messages.append(ChatMessage(type="human", content=user_input))
         st.chat_message("human").write(user_input)
         try:
             if use_streaming:
                 stream = agent_client.astream(
-                    message=user_input,
+                    message=enhanced_input,
                     model=model,
                     thread_id=st.session_state.thread_id,
                     user_id=user_id,
@@ -200,7 +295,7 @@ async def main() -> None:
                 await draw_messages(stream, is_new=True)
             else:
                 response = await agent_client.ainvoke(
-                    message=user_input,
+                    message=enhanced_input,
                     model=model,
                     thread_id=st.session_state.thread_id,
                     user_id=user_id,
