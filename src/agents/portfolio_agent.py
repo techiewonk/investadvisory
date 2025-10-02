@@ -14,13 +14,14 @@ from langgraph.prebuilt import create_react_agent
 from core import get_model, settings
 
 from .advanced_math_tools import ADVANCED_MATH_TOOLS
+from .data_flow_tools import DATA_FLOW_TOOLS
 from .portfolio_tools import PORTFOLIO_TOOLS
 from .tools import calculator
 
 current_date = datetime.now().strftime("%B %d, %Y")
 
 # Combine all tools for comprehensive portfolio analysis
-COMPREHENSIVE_PORTFOLIO_TOOLS = PORTFOLIO_TOOLS + ADVANCED_MATH_TOOLS + [calculator]
+COMPREHENSIVE_PORTFOLIO_TOOLS = PORTFOLIO_TOOLS + ADVANCED_MATH_TOOLS + DATA_FLOW_TOOLS + [calculator]
 
 # Enhanced instructions for the comprehensive portfolio agent
 PORTFOLIO_INSTRUCTIONS = f"""

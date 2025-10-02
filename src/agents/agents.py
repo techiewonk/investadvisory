@@ -5,9 +5,8 @@ from langgraph.pregel import Pregel
 
 from agents.lazy_agent import LazyLoadingAgent
 from agents.market_research_agent import market_research_agent
-from agents.math_agent import math_agent
 from agents.portfolio_agent import portfolio_agent
-from agents.research_assistant import research_assistant
+from agents.risk_optimization_agent import risk_optimization_agent
 from agents.supervisor_agent import (
     supervisor_agent,
 )
@@ -29,14 +28,6 @@ class Agent:
 
 
 agents: dict[str, Agent] = {
-    "research-assistant": Agent(
-        description="A research assistant with web search, calculator, and portfolio analysis tools.",
-        graph_like=research_assistant,
-    ),
-    "math-agent": Agent(
-        description="A specialized mathematical analysis agent for portfolio calculations and financial mathematics.",
-        graph_like=math_agent,
-    ),
     "portfolio-agent": Agent(
         description="A portfolio analysis specialist for client data, asset allocation, and performance tracking.",
         graph_like=portfolio_agent,
@@ -44,6 +35,10 @@ agents: dict[str, Agent] = {
     "market-research-agent": Agent(
         description="A market research expert for trend analysis, company research, and economic indicators.",
         graph_like=market_research_agent,
+    ),
+    "risk-optimization-agent": Agent(
+        description="A risk assessment and portfolio optimization specialist for risk analysis, compliance monitoring, and portfolio optimization.",
+        graph_like=risk_optimization_agent,
     ),
     "supervisor-agent": Agent(
         description="A production-ready hierarchical supervisor managing specialized investment advisory agents",

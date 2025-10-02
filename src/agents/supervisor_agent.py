@@ -29,6 +29,7 @@ from .llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
 from .market_research_agent import create_market_research_agent
 from .math_agent import MATH_TOOLS, create_math_agent
 from .portfolio_agent import create_portfolio_agent
+from .risk_optimization_agent import create_risk_optimization_agent
 
 model = get_model(settings.DEFAULT_MODEL)
 
@@ -174,6 +175,7 @@ def workflow(chosen_model):
     math_agent = create_math_agent(chosen_model).with_config(tags=["skip_stream"])
     portfolio_agent_instance = create_portfolio_agent(chosen_model).with_config(tags=["skip_stream"])
     research_agent = create_market_research_agent(chosen_model).with_config(tags=["skip_stream"])
+    risk_optimization_agent_instance = create_risk_optimization_agent(chosen_model).with_config(tags=["skip_stream"])
 
     # Create intermediate supervisor for specialized analysis
     analysis_supervisor = create_supervisor(
@@ -193,23 +195,25 @@ def workflow(chosen_model):
 
     # Create main supervisor managing research and analysis teams
     main_supervisor = create_supervisor(
-        [research_agent, analysis_supervisor],
+        [research_agent, analysis_supervisor, risk_optimization_agent_instance],
         model=chosen_model,
         prompt=(
-            f"You are the main investment advisory supervisor managing research and "
-            f"analysis teams. Today's date is {current_date}. "
+            f"You are the main investment advisory supervisor managing research, "
+            f"analysis, and risk optimization teams. Today's date is {current_date}. "
             f"Team capabilities: "
             f"- research_expert: Market research, news analysis, company research, "
             f"economic indicators "
             f"- analysis_team (supervisor): Mathematical calculations and portfolio analysis "
             f"  - math_expert: Financial calculations, risk metrics, statistical analysis "
             f"  - portfolio_expert: Client portfolio analysis, performance tracking, "
-            f"asset allocation, risk metrics, portfolio optimization "
+            f"asset allocation "
+            f"- risk_optimization_expert: Risk assessment, compliance monitoring, "
+            f"portfolio optimization, stress testing, regulatory compliance "
             f"Routing guidelines: "
             f"- For market research, news, or general investment information → research_expert "
             f"- For client portfolio analysis or mathematical calculations → analysis_team "
-            f"- For complex queries requiring both research and analysis → coordinate "
-            f"between teams "
+            f"- For risk assessment, compliance checks, or portfolio optimization → risk_optimization_expert "
+            f"- For complex queries requiring multiple teams → coordinate between teams "
             f"Always ensure comprehensive analysis by leveraging the appropriate specialists. "
             f"The goal is to provide actionable investment advice and insights."
         ),

@@ -383,17 +383,26 @@ async def analyze_portfolio_by_market_cap(client_id: str) -> dict[str, Any]:
 @tool
 async def get_individual_stock_performance(client_id: str, symbol: str) -> dict[str, Any]:
     """
-    Get performance analysis for a specific stock in the client's portfolio.
+    Get detailed performance analysis for a specific stock in a client's portfolio with real-time market data.
     
     Args:
         client_id: The client's unique identifier (e.g., 'CLT-001')
         symbol: Stock symbol to analyze (e.g., 'AAPL')
         
     Returns:
-        Dictionary containing individual stock performance and metrics
+        Dictionary containing detailed stock performance data including:
+        - Position summary with real-time current price and YTD performance
+        - Holdings breakdown by portfolio
+        - Transaction history for the stock
+        - Real-time market comparison and year-to-date returns
     """
     try:
+        from datetime import datetime
+
+        import yfinance as yf
+
         from service.portfolio_service import get_portfolio_service
+        
         async with get_portfolio_service() as portfolio_service:
             result = await portfolio_service.get_user_portfolios(client_id)
             if not result:
@@ -418,8 +427,57 @@ async def get_individual_stock_performance(client_id: str, symbol: str) -> dict[
             
             # Calculate total position across all portfolios
             total_quantity = sum(h["quantity"] for h in stock_holdings)
-            total_value = sum(h["total_value"] for h in stock_holdings)
-            current_price = total_value / total_quantity if total_quantity > 0 else 0
+            
+            # Get real-time market data using yfinance
+            real_time_data = {}
+            ytd_performance = {}
+            
+            try:
+                ticker = yf.Ticker(symbol.upper())
+                
+                # Get current price
+                current_info = ticker.info
+                current_price = current_info.get('currentPrice') or current_info.get('regularMarketPrice', 0)
+                
+                # Get historical data for YTD calculation
+                current_year = datetime.now().year
+                year_start = f"{current_year}-01-01"
+                hist_data = ticker.history(start=year_start, end=datetime.now().strftime('%Y-%m-%d'))
+                
+                if not hist_data.empty:
+                    year_start_price = hist_data['Close'].iloc[0]
+                    ytd_return = ((current_price - year_start_price) / year_start_price * 100) if year_start_price > 0 else 0
+                    
+                    ytd_performance = {
+                        "year_start_price": round(float(year_start_price), 2),
+                        "current_price": round(float(current_price), 2),
+                        "ytd_return_percentage": round(float(ytd_return), 2),
+                        "ytd_dollar_change": round(float(current_price - year_start_price), 2)
+                    }
+                
+                real_time_data = {
+                    "current_price": round(float(current_price), 2),
+                    "market_cap": current_info.get('marketCap'),
+                    "pe_ratio": current_info.get('trailingPE'),
+                    "52_week_high": current_info.get('fiftyTwoWeekHigh'),
+                    "52_week_low": current_info.get('fiftyTwoWeekLow'),
+                    "volume": current_info.get('volume'),
+                    "avg_volume": current_info.get('averageVolume'),
+                    "data_source": "Yahoo Finance (Real-time)"
+                }
+                
+            except Exception as e:
+                logger.warning(f"Could not fetch real-time data for {symbol}: {e}")
+                # Fallback to portfolio data
+                total_value = sum(h["total_value"] for h in stock_holdings)
+                current_price = total_value / total_quantity if total_quantity > 0 else 0
+                real_time_data = {
+                    "current_price": round(current_price, 2),
+                    "data_source": "Portfolio data (Historical)"
+                }
+            
+            # Calculate current market value with real-time price
+            current_market_value = total_quantity * real_time_data["current_price"]
             
             # Get transaction history for this stock to calculate returns
             transactions_result = await portfolio_service.get_user_transactions(client_id, limit=100, offset=0)
@@ -446,8 +504,13 @@ async def get_individual_stock_performance(client_id: str, symbol: str) -> dict[
                     total_shares_bought += transaction["quantity"]
             
             average_cost_basis = total_cost / total_shares_bought if total_shares_bought > 0 else 0
-            unrealized_pnl = total_value - total_cost
+            unrealized_pnl = current_market_value - total_cost
             return_percentage = (unrealized_pnl / total_cost * 100) if total_cost > 0 else 0
+            
+            # Calculate position-specific YTD performance
+            position_ytd_gain_loss = 0
+            if ytd_performance:
+                position_ytd_gain_loss = total_quantity * ytd_performance["ytd_dollar_change"]
             
             return {
                 "client_id": client_id,
@@ -456,20 +519,143 @@ async def get_individual_stock_performance(client_id: str, symbol: str) -> dict[
                 "sector": stock_holdings[0]["sector"],
                 "position_summary": {
                     "total_quantity": total_quantity,
-                    "current_price": round(current_price, 2),
-                    "total_market_value": round(total_value, 2),
+                    "current_price": real_time_data["current_price"],
+                    "total_market_value": round(current_market_value, 2),
                     "average_cost_basis": round(average_cost_basis, 2),
                     "total_cost": round(total_cost, 2),
                     "unrealized_pnl": round(unrealized_pnl, 2),
-                    "return_percentage": round(return_percentage, 2)
+                    "return_percentage": round(return_percentage, 2),
+                    "position_ytd_gain_loss": round(position_ytd_gain_loss, 2)
                 },
+                "real_time_market_data": real_time_data,
+                "ytd_performance": ytd_performance,
                 "holdings_by_portfolio": stock_holdings,
-                "transaction_history": stock_transactions
+                "transaction_history": stock_transactions,
+                "analysis_timestamp": datetime.now().isoformat()
             }
             
     except Exception as e:
         logger.error(f"Error getting individual stock performance: {e}")
         return {"error": f"Failed to analyze stock performance: {str(e)}"}
+
+
+@tool
+async def get_best_ytd_performers(client_id: str, limit: int = 5) -> dict[str, Any]:
+    """
+    Get the best year-to-date performing holdings for a client with real-time market data.
+    
+    Args:
+        client_id: The client's unique identifier (e.g., 'CLT-001')
+        limit: Number of top performers to return (default: 5)
+        
+    Returns:
+        Dictionary containing ranked list of best YTD performers with real-time data
+    """
+    try:
+        from datetime import datetime
+
+        import yfinance as yf
+
+        from service.portfolio_service import get_portfolio_service
+        
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_user_portfolios(client_id)
+            if not result:
+                return {"error": f"Client with ID '{client_id}' not found"}
+            
+            # Get all unique holdings across portfolios
+            all_holdings = {}
+            for portfolio in result.portfolios:
+                for holding in portfolio.holdings:
+                    symbol = holding.security.symbol.upper()
+                    if symbol not in all_holdings:
+                        all_holdings[symbol] = {
+                            "symbol": symbol,
+                            "security_name": holding.security.security_name,
+                            "sector": holding.security.sector,
+                            "total_quantity": 0,
+                            "total_value": 0
+                        }
+                    all_holdings[symbol]["total_quantity"] += float(holding.total_quantity)
+                    all_holdings[symbol]["total_value"] += float(holding.total_value)
+            
+            # Get YTD performance for each holding
+            performers = []
+            current_year = datetime.now().year
+            year_start = f"{current_year}-01-01"
+            
+            for symbol, holding_data in all_holdings.items():
+                try:
+                    ticker = yf.Ticker(symbol)
+                    
+                    # Get current price and YTD data
+                    current_info = ticker.info
+                    current_price = current_info.get('currentPrice') or current_info.get('regularMarketPrice', 0)
+                    
+                    hist_data = ticker.history(start=year_start, end=datetime.now().strftime('%Y-%m-%d'))
+                    
+                    if not hist_data.empty and current_price > 0:
+                        year_start_price = hist_data['Close'].iloc[0]
+                        ytd_return = ((current_price - year_start_price) / year_start_price * 100) if year_start_price > 0 else 0
+                        
+                        # Calculate position-specific gains
+                        position_ytd_gain = holding_data["total_quantity"] * (current_price - year_start_price)
+                        current_market_value = holding_data["total_quantity"] * current_price
+                        
+                        performers.append({
+                            "symbol": symbol,
+                            "security_name": holding_data["security_name"],
+                            "sector": holding_data["sector"],
+                            "total_quantity": holding_data["total_quantity"],
+                            "year_start_price": round(float(year_start_price), 2),
+                            "current_price": round(float(current_price), 2),
+                            "ytd_return_percentage": round(float(ytd_return), 2),
+                            "ytd_dollar_change": round(float(current_price - year_start_price), 2),
+                            "position_ytd_gain": round(position_ytd_gain, 2),
+                            "current_market_value": round(current_market_value, 2),
+                            "market_cap": current_info.get('marketCap'),
+                            "pe_ratio": current_info.get('trailingPE')
+                        })
+                        
+                except Exception as e:
+                    logger.warning(f"Could not fetch YTD data for {symbol}: {e}")
+                    # Add with 0% return if data unavailable
+                    performers.append({
+                        "symbol": symbol,
+                        "security_name": holding_data["security_name"],
+                        "sector": holding_data["sector"],
+                        "total_quantity": holding_data["total_quantity"],
+                        "ytd_return_percentage": 0.0,
+                        "position_ytd_gain": 0.0,
+                        "current_market_value": holding_data["total_value"],
+                        "data_unavailable": True
+                    })
+            
+            # Sort by YTD return percentage (descending)
+            performers.sort(key=lambda x: x["ytd_return_percentage"], reverse=True)
+            
+            # Get top performers
+            top_performers = performers[:limit]
+            
+            # Calculate portfolio impact
+            total_portfolio_ytd_gain = sum(p["position_ytd_gain"] for p in performers if "position_ytd_gain" in p)
+            
+            return {
+                "client_id": client_id,
+                "analysis_date": datetime.now().isoformat(),
+                "total_holdings_analyzed": len(performers),
+                "top_performers": top_performers,
+                "portfolio_ytd_summary": {
+                    "total_ytd_gain_loss": round(total_portfolio_ytd_gain, 2),
+                    "best_performer": top_performers[0] if top_performers else None,
+                    "worst_performer": performers[-1] if performers else None
+                },
+                "data_source": "Yahoo Finance (Real-time)"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting best YTD performers: {e}")
+        return {"error": f"Failed to analyze YTD performance: {str(e)}"}
 
 
 PORTFOLIO_TOOLS = [
@@ -479,6 +665,7 @@ PORTFOLIO_TOOLS = [
     analyze_client_portfolio_performance,
     analyze_portfolio_by_market_cap,
     get_individual_stock_performance,
+    get_best_ytd_performers,
     # NOTE: InjectedToolArg tools removed - they don't work with create_react_agent
     # Use explicit client_id parameters instead
     # get_selected_client_portfolios,  # Doesn't work - InjectedToolArg issue
