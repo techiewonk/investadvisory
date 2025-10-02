@@ -257,11 +257,12 @@ async def main() -> None:
                           f"provide technical analysis, and monitor earnings calendars. I combine fundamental, technical, and "
                           f"sentiment analysis to identify investment opportunities and risks.{client_context}")
             case "supervisor-agent":
-                welcome = (f"Hello! I'm your advanced AI investment advisory team with specialized "
-                          f"experts in market research, portfolio analysis, mathematical calculations, "
-                          f"and risk optimization. I coordinate between research, portfolio, math, and "
-                          f"risk assessment specialists to provide comprehensive investment analysis, "
-                          f"portfolio optimization, and risk management recommendations.{client_context}")
+                welcome = (f"Hello! I'm your advanced AI investment advisory team with specialized experts: "
+                          f"**Market Research** (economic indicators, news analysis, SEC filings), "
+                          f"**Securities & Portfolio Analysis** (technical analysis with RSI/MACD/Bollinger Bands, "
+                          f"fundamental analysis, portfolio optimization), and **Risk & Optimization** "
+                          f"(risk assessment, compliance monitoring, stress testing). I coordinate between all "
+                          f"specialists to provide comprehensive investment analysis and actionable recommendations.{client_context}")
             case _:
                 welcome = (f"Hello! I'm an AI investment advisor. I can help analyze portfolios, "
                           f"research securities, and provide financial guidance.{client_context}")
