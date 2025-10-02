@@ -187,9 +187,9 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                     requests.exceptions.ConnectionError, Exception) as e:
                 logger.warning(f"Alpha Vantage API error for {ticker}: {e}")
         
-        # Fallback to mock data
-        logger.info(f"API connection issues or no API keys configured for {ticker}, using mock data")
-        return _get_mock_sec_data(ticker, filing_type)
+        # Return error if no API keys configured
+        logger.error(f"No API keys configured for {ticker} - FINANCIAL_MODELING_PREP_API_KEY or ALPHA_VANTAGE_API_KEY required")
+        return {"error": f"API keys required for {ticker} - configure FINANCIAL_MODELING_PREP_API_KEY or ALPHA_VANTAGE_API_KEY"}
         
     except Exception as e:
         logger.error(f"Error fetching SEC filings for {ticker}: {e}")
@@ -302,51 +302,14 @@ def _get_alpha_vantage_fundamentals(ticker: str, filing_type: str) -> Dict[str, 
                     })
                 }
         
-        # If Alpha Vantage fails, return mock data
-        return _get_mock_sec_data(ticker, filing_type)
+        # If Alpha Vantage fails, return error
+        return {"error": f"Alpha Vantage API failed for {ticker} - check API key and connection"}
         
     except Exception as e:
         logger.warning(f"Alpha Vantage error for {ticker}: {e}")
-        return _get_mock_sec_data(ticker, filing_type)
+        return {"error": f"Alpha Vantage API error for {ticker}: {str(e)}"}
 
 
-def _get_mock_sec_data(ticker: str, filing_type: str) -> Dict[str, Any]:
-    """Fallback mock data when all APIs are unavailable."""
-    return {
-        "ticker": ticker.upper(),
-        "filing_type": filing_type,
-        "data_source": "Mock Data - API keys required",
-        "company_profile": {
-            "company_name": f"{ticker.upper()} Corporation",
-            "sector": "Technology",
-            "industry": "Software",
-            "description": f"Mock company profile for {ticker.upper()}. Configure FINANCIAL_MODELING_PREP_API_KEY or ALPHA_VANTAGE_API_KEY for real data.",
-            "market_cap": 1000000000,
-            "employees": 10000
-        },
-        "financial_highlights": {
-            "pe_ratio": "N/A",
-            "debt_to_equity": "N/A",
-            "current_ratio": "N/A",
-            "roe": "N/A",
-            "profit_margin": "N/A"
-        },
-        "recent_filings": [
-            {
-                "filing_date": "2024-01-29",
-                "accepted_date": "2024-01-29",
-                "form_type": filing_type,
-                "document_url": f"https://www.sec.gov/edgar/browse/?CIK={ticker}",
-                "status": "Mock data - Configure API keys for real SEC filings"
-            }
-        ],
-        "analysis": f"Mock {filing_type} analysis for {ticker.upper()}. Configure FINANCIAL_MODELING_PREP_API_KEY for comprehensive SEC filings data.",
-        "risk_factors": [
-            "API configuration required for real risk analysis",
-            "Market competition (mock data)",
-            "Regulatory changes (mock data)"
-        ]
-    }
 
 
 @tool
@@ -392,12 +355,16 @@ def get_economic_indicators(indicators: List[str] = None) -> Dict[str, Any]:
                         try:
                             # Get latest data point
                             series_data = fred.get_series(fred_series[indicator], limit=1)
+                            time.sleep(0.2)  # Rate limiting for FRED API
+                            
                             if not series_data.empty:
                                 latest_value = series_data.iloc[-1]
                                 latest_date = series_data.index[-1].strftime("%Y-%m-%d")
                                 
                                 # Get previous value for trend analysis
                                 prev_data = fred.get_series(fred_series[indicator], limit=2)
+                                time.sleep(0.2)  # Rate limiting for FRED API
+                                
                                 trend = "stable"
                                 if len(prev_data) >= 2:
                                     if latest_value > prev_data.iloc[-2]:
@@ -421,11 +388,11 @@ def get_economic_indicators(indicators: List[str] = None) -> Dict[str, Any]:
                 economic_data["investment_implications"] = _get_investment_implications(economic_data["indicators"])
                 
             except Exception as e:
-                logger.warning(f"FRED API error: {e}, using fallback data")
-                economic_data = _get_mock_economic_data(indicators)
+                logger.warning(f"FRED API error: {e}")
+                return {"error": f"FRED API error: {str(e)}"}
         else:
-            logger.info("FRED API key not configured, using mock data")
-            economic_data = _get_mock_economic_data(indicators)
+            logger.error("FRED API key not configured")
+            return {"error": "FRED_API_KEY required for economic indicators"}
         
         return economic_data
         
@@ -446,38 +413,6 @@ def _get_indicator_unit(indicator: str) -> str:
     return units.get(indicator, "Value")
 
 
-def _get_mock_indicator_data(indicator: str) -> Dict[str, Any]:
-    """Get mock data for a single indicator."""
-    mock_values = {
-        "GDP": {"value": 27000.0, "trend": "stable"},
-        "inflation": {"value": 3.2, "trend": "declining"},
-        "unemployment": {"value": 3.7, "trend": "stable"},
-        "interest_rates": {"value": 5.25, "trend": "stable"},
-        "consumer_confidence": {"value": 110.7, "trend": "improving"}
-    }
-    
-    data = mock_values.get(indicator, {"value": 0.0, "trend": "unknown"})
-    return {
-        "value": data["value"],
-        "unit": _get_indicator_unit(indicator),
-        "period": datetime.now().strftime("%Y-%m-%d"),
-        "trend": data["trend"],
-        "source": "Mock Data"
-    }
-
-
-def _get_mock_economic_data(indicators: List[str]) -> Dict[str, Any]:
-    """Fallback mock economic data."""
-    return {
-        "date": datetime.now().strftime("%Y-%m-%d"),
-        "data_source": "Mock Data - FRED API unavailable",
-        "indicators": {ind: _get_mock_indicator_data(ind) for ind in indicators},
-        "market_impact": "Mock economic analysis - FRED API unavailable",
-        "investment_implications": [
-            "Mock investment implications",
-            "FRED API key required for real data"
-        ]
-    }
 
 
 def _analyze_economic_conditions(indicators: Dict[str, Any]) -> str:
@@ -649,14 +584,14 @@ def analyze_news_sentiment(ticker: str, days_back: int = 7) -> Dict[str, Any]:
                     
                 else:
                     logger.warning(f"No news articles found for {ticker}")
-                    sentiment_data = _get_mock_sentiment_data(ticker, days_back)
+                    return {"error": f"No news articles found for {ticker}"}
                     
             except Exception as e:
-                logger.warning(f"NewsAPI error: {e}, using fallback data")
-                sentiment_data = _get_mock_sentiment_data(ticker, days_back)
+                logger.warning(f"NewsAPI error: {e}")
+                return {"error": f"NewsAPI error: {str(e)}"}
         else:
-            logger.info("NewsAPI key not configured, using mock data")
-            sentiment_data = _get_mock_sentiment_data(ticker, days_back)
+            logger.error("NewsAPI key not configured")
+            return {"error": "NEWS_API_KEY required for news sentiment analysis"}
         
         return sentiment_data
         
@@ -695,30 +630,6 @@ def _generate_investment_impact(ticker: str, sentiment: str, score: float) -> st
         return f"Neutral sentiment for {ticker} suggests balanced investor opinion with no clear directional bias."
 
 
-def _get_mock_sentiment_data(ticker: str, days_back: int) -> Dict[str, Any]:
-    """Fallback mock sentiment data."""
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days_back)
-    
-    return {
-        "ticker": ticker.upper(),
-        "analysis_period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
-        "data_source": "Mock Data - NewsAPI unavailable",
-        "overall_sentiment": "Neutral",
-        "sentiment_score": 0.0,
-        "news_volume": 0,
-        "key_themes": ["Mock theme 1", "Mock theme 2"],
-        "recent_headlines": [
-            {
-                "date": datetime.now().strftime('%Y-%m-%d'),
-                "headline": f"Mock headline for {ticker}",
-                "sentiment": "Neutral",
-                "source": "Mock Source"
-            }
-        ],
-        "risk_alerts": ["NewsAPI key required for real sentiment analysis"],
-        "investment_impact": f"Mock sentiment analysis for {ticker} - NewsAPI key required for real data."
-    }
 
 
 @tool
@@ -805,8 +716,8 @@ def get_sector_performance(sector: str = None) -> Dict[str, Any]:
                         
                 except Exception as e:
                     logger.warning(f"Failed to get data for {sector_name} ({etf_symbol}): {e}")
-                    # Use mock data as fallback
-                    sectors_data["sector_performance"][sector_name] = _get_mock_sector_data(sector_name)
+                    # Skip failed sectors instead of using mock data
+                    continue
             
             # Identify leaders and underperformers
             if sectors_data["sector_performance"]:
@@ -837,8 +748,8 @@ def get_sector_performance(sector: str = None) -> Dict[str, Any]:
                 sectors_data["investment_themes"] = _generate_investment_themes(sectors_data["sector_performance"])
             
         except Exception as e:
-            logger.warning(f"Yahoo Finance error: {e}, using mock data")
-            sectors_data = _get_mock_sectors_data()
+            logger.warning(f"Yahoo Finance error: {e}")
+            return {"error": f"Yahoo Finance error: {str(e)}"}
         
         # Return specific sector data if requested
         if sector and sector.title() in sectors_data["sector_performance"]:
@@ -876,44 +787,6 @@ def _get_sector_drivers(sector_name: str) -> List[str]:
     return drivers.get(sector_name, ["Market conditions", "Economic factors", "Industry trends"])
 
 
-def _get_mock_sector_data(sector_name: str) -> Dict[str, Any]:
-    """Get mock data for a single sector."""
-    mock_returns = {
-        "Technology": {"ytd": 8.5, "1m": 3.2, "3m": 12.1},
-        "Healthcare": {"ytd": 4.2, "1m": 1.8, "3m": 6.7},
-        "Finance": {"ytd": 6.1, "1m": 2.5, "3m": 9.3},
-        "Energy": {"ytd": -2.3, "1m": -1.1, "3m": 3.4}
-    }
-    
-    returns = mock_returns.get(sector_name, {"ytd": 0.0, "1m": 0.0, "3m": 0.0})
-    
-    return {
-        "etf_symbol": "MOCK",
-        "ytd_return": returns["ytd"],
-        "1m_return": returns["1m"],
-        "3m_return": returns["3m"],
-        "current_price": 100.0,
-        "pe_ratio": "N/A",
-        "trend": "Mock Data",
-        "key_drivers": _get_sector_drivers(sector_name)
-    }
-
-
-def _get_mock_sectors_data() -> Dict[str, Any]:
-    """Fallback mock sectors data."""
-    return {
-        "analysis_date": datetime.now().strftime("%Y-%m-%d"),
-        "data_source": "Mock Data - Yahoo Finance unavailable",
-        "sector_performance": {
-            "Technology": _get_mock_sector_data("Technology"),
-            "Healthcare": _get_mock_sector_data("Healthcare"),
-            "Finance": _get_mock_sector_data("Finance"),
-            "Energy": _get_mock_sector_data("Energy")
-        },
-        "market_leaders": [{"sector": "Technology", "reason": "Mock data"}],
-        "underperformers": [{"sector": "Energy", "reason": "Mock data"}],
-        "investment_themes": ["Mock theme 1", "Mock theme 2"]
-    }
 
 
 def _generate_investment_themes(sector_performance: Dict[str, Any]) -> List[str]:
@@ -947,7 +820,7 @@ def _generate_investment_themes(sector_performance: Dict[str, Any]) -> List[str]
 @tool
 def get_market_technical_indicators(symbol: str = "SPY") -> Dict[str, Any]:
     """
-    Get technical indicators and market analysis.
+    Get technical indicators and market analysis using Alpha Vantage API.
     
     Args:
         symbol: Market symbol or ETF (SPY, QQQ, etc.)
@@ -956,69 +829,244 @@ def get_market_technical_indicators(symbol: str = "SPY") -> Dict[str, Any]:
         Dictionary containing technical analysis data
     """
     try:
-        # Mock implementation - integrate with technical analysis APIs
-        mock_technical = {
+        technical_data = {
             "symbol": symbol.upper(),
             "analysis_date": datetime.now().strftime("%Y-%m-%d"),
-            "price_data": {
-                "current_price": 485.20,
-                "52_week_high": 495.50,
-                "52_week_low": 348.10,
-                "price_change_1d": 2.35,
-                "price_change_pct_1d": 0.49
-            },
-            "technical_indicators": {
-                "RSI_14": {
-                    "value": 58.3,
-                    "signal": "Neutral",
-                    "interpretation": "Neither overbought nor oversold"
-                },
-                "MACD": {
-                    "macd_line": 1.25,
-                    "signal_line": 0.98,
-                    "histogram": 0.27,
-                    "signal": "Bullish",
-                    "interpretation": "MACD above signal line suggests upward momentum"
-                },
-                "Moving_Averages": {
-                    "SMA_20": 478.50,
-                    "SMA_50": 465.30,
-                    "SMA_200": 425.80,
-                    "signal": "Bullish",
-                    "interpretation": "Price above all major moving averages"
-                },
-                "Bollinger_Bands": {
-                    "upper_band": 492.10,
-                    "middle_band": 478.50,
-                    "lower_band": 464.90,
-                    "signal": "Neutral",
-                    "interpretation": "Price in middle of bands, normal volatility"
-                }
-            },
-            "support_resistance": {
-                "support_levels": [475.00, 465.00, 450.00],
-                "resistance_levels": [490.00, 495.00, 500.00]
-            },
-            "overall_signal": "Moderately Bullish",
-            "market_outlook": "Technical indicators suggest continued upward bias with normal volatility. Key support at 475 level.",
-            "risk_factors": [
-                "Potential resistance near 490-495 levels",
-                "Watch for RSI approaching overbought (>70)",
-                "Volume confirmation needed for breakouts"
-            ]
+            "data_source": "Alpha Vantage",
+            "price_data": {},
+            "technical_indicators": {},
+            "support_resistance": {},
+            "overall_signal": "Neutral",
+            "market_outlook": "",
+            "risk_factors": []
         }
         
-        return mock_technical
+        # Use Alpha Vantage for technical indicators if API key is available
+        if settings.ALPHA_VANTAGE_API_KEY:
+            try:
+                base_url = "https://www.alphavantage.co/query"
+                api_key = settings.ALPHA_VANTAGE_API_KEY.get_secret_value()
+                
+                # Get daily price data
+                price_params = {
+                    "function": "TIME_SERIES_DAILY",
+                    "symbol": symbol.upper(),
+                    "apikey": api_key
+                }
+                
+                price_response = requests.get(base_url, params=price_params, timeout=15)
+                time.sleep(1.0)  # Rate limiting for Alpha Vantage (5 calls per minute)
+                
+                if price_response.status_code == 200:
+                    price_data = price_response.json()
+                    
+                    if "Time Series (Daily)" in price_data:
+                        time_series = price_data["Time Series (Daily)"]
+                        dates = sorted(time_series.keys(), reverse=True)
+                        
+                        if len(dates) >= 2:
+                            latest_date = dates[0]
+                            prev_date = dates[1]
+                            
+                            current_price = float(time_series[latest_date]["4. close"])
+                            prev_price = float(time_series[prev_date]["4. close"])
+                            
+                            # Calculate price changes
+                            price_change = current_price - prev_price
+                            price_change_pct = (price_change / prev_price) * 100
+                            
+                            # Calculate 52-week high/low
+                            prices_52w = [float(time_series[date]["2. high"]) for date in dates[:252] if date in time_series]
+                            lows_52w = [float(time_series[date]["3. low"]) for date in dates[:252] if date in time_series]
+                            
+                            technical_data["price_data"] = {
+                                "current_price": round(current_price, 2),
+                                "52_week_high": round(max(prices_52w) if prices_52w else current_price, 2),
+                                "52_week_low": round(min(lows_52w) if lows_52w else current_price, 2),
+                                "price_change_1d": round(price_change, 2),
+                                "price_change_pct_1d": round(price_change_pct, 2)
+                            }
+                
+                # Get RSI indicator
+                rsi_params = {
+                    "function": "RSI",
+                    "symbol": symbol.upper(),
+                    "interval": "daily",
+                    "time_period": "14",
+                    "series_type": "close",
+                    "apikey": api_key
+                }
+                
+                rsi_response = requests.get(base_url, params=rsi_params, timeout=15)
+                time.sleep(1.0)  # Rate limiting
+                
+                if rsi_response.status_code == 200:
+                    rsi_data = rsi_response.json()
+                    
+                    if "Technical Analysis: RSI" in rsi_data:
+                        rsi_series = rsi_data["Technical Analysis: RSI"]
+                        latest_rsi_date = max(rsi_series.keys())
+                        rsi_value = float(rsi_series[latest_rsi_date]["RSI"])
+                        
+                        # Interpret RSI
+                        if rsi_value > 70:
+                            rsi_signal = "Overbought"
+                            rsi_interpretation = "RSI above 70 suggests potential selling pressure"
+                        elif rsi_value < 30:
+                            rsi_signal = "Oversold"
+                            rsi_interpretation = "RSI below 30 suggests potential buying opportunity"
+                        else:
+                            rsi_signal = "Neutral"
+                            rsi_interpretation = "RSI in normal range, neither overbought nor oversold"
+                        
+                        technical_data["technical_indicators"]["RSI_14"] = {
+                            "value": round(rsi_value, 1),
+                            "signal": rsi_signal,
+                            "interpretation": rsi_interpretation
+                        }
+                
+                # Get MACD indicator
+                macd_params = {
+                    "function": "MACD",
+                    "symbol": symbol.upper(),
+                    "interval": "daily",
+                    "series_type": "close",
+                    "apikey": api_key
+                }
+                
+                macd_response = requests.get(base_url, params=macd_params, timeout=15)
+                time.sleep(1.0)  # Rate limiting
+                
+                if macd_response.status_code == 200:
+                    macd_data = macd_response.json()
+                    
+                    if "Technical Analysis: MACD" in macd_data:
+                        macd_series = macd_data["Technical Analysis: MACD"]
+                        latest_macd_date = max(macd_series.keys())
+                        
+                        macd_line = float(macd_series[latest_macd_date]["MACD"])
+                        signal_line = float(macd_series[latest_macd_date]["MACD_Signal"])
+                        histogram = float(macd_series[latest_macd_date]["MACD_Hist"])
+                        
+                        # Interpret MACD
+                        if macd_line > signal_line:
+                            macd_signal = "Bullish"
+                            macd_interpretation = "MACD above signal line suggests upward momentum"
+                        else:
+                            macd_signal = "Bearish"
+                            macd_interpretation = "MACD below signal line suggests downward momentum"
+                        
+                        technical_data["technical_indicators"]["MACD"] = {
+                            "macd_line": round(macd_line, 3),
+                            "signal_line": round(signal_line, 3),
+                            "histogram": round(histogram, 3),
+                            "signal": macd_signal,
+                            "interpretation": macd_interpretation
+                        }
+                
+                # Generate overall analysis
+                technical_data["overall_signal"] = _generate_technical_signal(technical_data["technical_indicators"])
+                technical_data["market_outlook"] = _generate_market_outlook(technical_data)
+                technical_data["risk_factors"] = _generate_technical_risks(technical_data)
+                
+                return technical_data
+                
+            except Exception as e:
+                logger.warning(f"Alpha Vantage API error for {symbol}: {e}")
+                return {"error": f"Alpha Vantage API error for {symbol}: {str(e)}"}
+        
+        # Return error if API not available
+        logger.error(f"Alpha Vantage API not configured for {symbol}")
+        return {"error": "ALPHA_VANTAGE_API_KEY required for technical indicators"}
         
     except Exception as e:
         logger.error(f"Error fetching technical indicators for {symbol}: {e}")
         return {"error": f"Failed to retrieve technical indicators for {symbol}: {str(e)}"}
 
 
+def _generate_technical_signal(indicators: Dict[str, Any]) -> str:
+    """Generate overall technical signal from indicators."""
+    signals = []
+    
+    if "RSI_14" in indicators:
+        rsi_signal = indicators["RSI_14"]["signal"]
+        if rsi_signal == "Overbought":
+            signals.append("bearish")
+        elif rsi_signal == "Oversold":
+            signals.append("bullish")
+        else:
+            signals.append("neutral")
+    
+    if "MACD" in indicators:
+        macd_signal = indicators["MACD"]["signal"]
+        if macd_signal == "Bullish":
+            signals.append("bullish")
+        else:
+            signals.append("bearish")
+    
+    # Determine overall signal
+    bullish_count = signals.count("bullish")
+    bearish_count = signals.count("bearish")
+    
+    if bullish_count > bearish_count:
+        return "Bullish"
+    elif bearish_count > bullish_count:
+        return "Bearish"
+    else:
+        return "Neutral"
+
+
+def _generate_market_outlook(technical_data: Dict[str, Any]) -> str:
+    """Generate market outlook from technical data."""
+    signal = technical_data.get("overall_signal", "Neutral")
+    price_data = technical_data.get("price_data", {})
+    
+    outlook_parts = []
+    
+    if signal == "Bullish":
+        outlook_parts.append("Technical indicators suggest positive momentum")
+    elif signal == "Bearish":
+        outlook_parts.append("Technical indicators suggest negative momentum")
+    else:
+        outlook_parts.append("Technical indicators show mixed signals")
+    
+    # Add price context
+    if price_data.get("price_change_pct_1d"):
+        change_pct = price_data["price_change_pct_1d"]
+        if abs(change_pct) > 2:
+            outlook_parts.append(f"Recent volatility with {abs(change_pct):.1f}% daily move")
+    
+    return ". ".join(outlook_parts) if outlook_parts else "Market conditions appear stable"
+
+
+def _generate_technical_risks(technical_data: Dict[str, Any]) -> List[str]:
+    """Generate risk factors from technical analysis."""
+    risks = []
+    indicators = technical_data.get("technical_indicators", {})
+    
+    if "RSI_14" in indicators:
+        rsi_value = indicators["RSI_14"]["value"]
+        if rsi_value > 65:
+            risks.append("RSI approaching overbought territory")
+        elif rsi_value < 35:
+            risks.append("RSI in oversold territory, potential reversal risk")
+    
+    # General technical risks
+    risks.extend([
+        "Technical analysis based on historical patterns",
+        "Market sentiment can override technical signals",
+        "Volume confirmation important for signal validation"
+    ])
+    
+    return risks[:5]  # Limit to top 5 risks
+
+
+
+
 @tool
 def get_earnings_calendar(days_ahead: int = 7) -> Dict[str, Any]:
     """
-    Get upcoming earnings announcements and estimates.
+    Get upcoming earnings announcements and estimates using Financial Modeling Prep API.
     
     Args:
         days_ahead: Number of days ahead to look for earnings
@@ -1027,53 +1075,114 @@ def get_earnings_calendar(days_ahead: int = 7) -> Dict[str, Any]:
         Dictionary containing earnings calendar data
     """
     try:
-        # Mock implementation - integrate with earnings data APIs
         start_date = datetime.now()
         end_date = start_date + timedelta(days=days_ahead)
         
-        mock_earnings = {
+        earnings_data = {
             "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
-            "upcoming_earnings": [
-                {
-                    "date": "2024-02-01",
-                    "ticker": "AAPL",
-                    "company": "Apple Inc.",
-                    "time": "After Market Close",
-                    "estimates": {
-                        "eps_estimate": 2.18,
-                        "revenue_estimate": 117.9,  # in billions
-                        "eps_surprise_history": 0.05  # average surprise
-                    },
-                    "analyst_sentiment": "Positive",
-                    "key_focus": ["iPhone sales", "Services growth", "China market performance"]
-                },
-                {
-                    "date": "2024-02-02",
-                    "ticker": "GOOGL", 
-                    "company": "Alphabet Inc.",
-                    "time": "After Market Close",
-                    "estimates": {
-                        "eps_estimate": 1.34,
-                        "revenue_estimate": 73.2,
-                        "eps_surprise_history": 0.08
-                    },
-                    "analyst_sentiment": "Neutral",
-                    "key_focus": ["Search revenue", "Cloud growth", "AI investments"]
-                }
-            ],
-            "market_impact": "High-profile tech earnings could drive market volatility this week.",
-            "investment_considerations": [
-                "Earnings beats/misses may impact sector performance",
-                "Guidance updates critical for forward valuations", 
-                "Options activity elevated around announcement dates"
-            ]
+            "data_source": "Financial Modeling Prep",
+            "upcoming_earnings": [],
+            "market_impact": "",
+            "investment_considerations": []
         }
         
-        return mock_earnings
+        # Use Financial Modeling Prep API for earnings calendar
+        if settings.FINANCIAL_MODELING_PREP_API_KEY:
+            try:
+                base_url = "https://financialmodelingprep.com/api/v3"
+                api_key = settings.FINANCIAL_MODELING_PREP_API_KEY.get_secret_value()
+                
+                # Get earnings calendar for the specified period
+                from_date = start_date.strftime('%Y-%m-%d')
+                to_date = end_date.strftime('%Y-%m-%d')
+                
+                earnings_url = f"{base_url}/earning_calendar?from={from_date}&to={to_date}&apikey={api_key}"
+                earnings_response = requests.get(earnings_url, timeout=15)
+                time.sleep(0.5)  # Rate limiting
+                
+                if earnings_response.status_code == 200:
+                    earnings_json = earnings_response.json()
+                    
+                    if earnings_json and isinstance(earnings_json, list):
+                        # Process earnings data
+                        for earning in earnings_json[:20]:  # Limit to top 20 earnings
+                            try:
+                                # Get additional company info
+                                ticker = earning.get("symbol", "")
+                                if not ticker:
+                                    continue
+                                
+                                # Determine market impact based on market cap (if available)
+                                market_cap = earning.get("marketCap", 0)
+                                if market_cap > 100000000000:  # > $100B
+                                    impact_level = "High"
+                                elif market_cap > 10000000000:  # > $10B
+                                    impact_level = "Medium"
+                                else:
+                                    impact_level = "Low"
+                                
+                                # Format earnings data
+                                earnings_entry = {
+                                    "date": earning.get("date", ""),
+                                    "ticker": ticker,
+                                    "company": earning.get("companyName", ticker),
+                                    "time": earning.get("time", "Not specified"),
+                                    "estimates": {
+                                        "eps_estimate": earning.get("epsEstimated", "N/A"),
+                                        "revenue_estimate": earning.get("revenueEstimated", "N/A"),
+                                        "eps_actual": earning.get("eps", "N/A") if earning.get("eps") else "Pending"
+                                    },
+                                    "market_cap": market_cap,
+                                    "impact_level": impact_level,
+                                    "fiscal_date_ending": earning.get("fiscalDateEnding", ""),
+                                    "updated_from_date": earning.get("updatedFromDate", "")
+                                }
+                                
+                                earnings_data["upcoming_earnings"].append(earnings_entry)
+                                
+                            except Exception as e:
+                                logger.warning(f"Error processing earnings entry: {e}")
+                                continue
+                        
+                        # Generate market impact analysis
+                        high_impact_count = len([e for e in earnings_data["upcoming_earnings"] if e.get("impact_level") == "High"])
+                        
+                        if high_impact_count > 5:
+                            earnings_data["market_impact"] = f"Heavy earnings week with {high_impact_count} major companies reporting. Expect increased market volatility."
+                        elif high_impact_count > 2:
+                            earnings_data["market_impact"] = f"Moderate earnings activity with {high_impact_count} large-cap companies reporting."
+                        else:
+                            earnings_data["market_impact"] = "Light earnings week with limited major company reports."
+                        
+                        # Generate investment considerations
+                        earnings_data["investment_considerations"] = [
+                            "Earnings surprises can drive significant stock price movements",
+                            "Forward guidance often more important than historical results",
+                            "Sector-wide impacts possible from major company reports",
+                            "Options volatility typically elevated around earnings dates",
+                            "Consider position sizing around high-impact earnings"
+                        ]
+                        
+                        return earnings_data
+                
+                # If no earnings data found, return empty but valid structure
+                earnings_data["market_impact"] = "No major earnings scheduled for the specified period."
+                earnings_data["investment_considerations"] = ["Monitor for any last-minute earnings announcements"]
+                return earnings_data
+                
+            except Exception as e:
+                logger.warning(f"Financial Modeling Prep API error for earnings: {e}")
+                return {"error": f"Financial Modeling Prep API error: {str(e)}"}
+        
+        # Return error if API not available
+        logger.error("Financial Modeling Prep API not configured for earnings")
+        return {"error": "FINANCIAL_MODELING_PREP_API_KEY required for earnings calendar"}
         
     except Exception as e:
         logger.error(f"Error fetching earnings calendar: {e}")
         return {"error": f"Failed to retrieve earnings calendar: {str(e)}"}
+
+
 
 
 # Collect all market research tools
