@@ -3,14 +3,14 @@ from dataclasses import dataclass
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.pregel import Pregel
 
-from agents.langgraph_supervisor_hierarchy_agent import (
-    langgraph_supervisor_hierarchy_agent,
-)
 from agents.lazy_agent import LazyLoadingAgent
 from agents.research_assistant import research_assistant
+from agents.supervisor_agent import (
+    supervisor_agent,
+)
 from schema import AgentInfo
 
-DEFAULT_AGENT = "langgraph-supervisor-hierarchy-agent"
+DEFAULT_AGENT = "supervisor-agent"
 
 # Type alias to handle LangGraph's different agent patterns
 # - @entrypoint functions return Pregel
@@ -30,9 +30,9 @@ agents: dict[str, Agent] = {
         description="A research assistant with web search, calculator, and portfolio analysis tools.",
         graph_like=research_assistant,
     ),
-    "langgraph-supervisor-hierarchy-agent": Agent(
+    "supervisor-agent": Agent(
         description="A production-ready hierarchical supervisor managing specialized investment advisory agents",
-        graph_like=langgraph_supervisor_hierarchy_agent,
+        graph_like=supervisor_agent,
     ),
 }
 

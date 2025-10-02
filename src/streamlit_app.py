@@ -242,7 +242,7 @@ async def main() -> None:
                 welcome = (f"Hello! I'm an AI-powered investment research assistant with web "
                           f"search and calculator capabilities. I can research market trends, "
                           f"analyze securities, and provide investment insights.{client_context}")
-            case "langgraph-supervisor-hierarchy-agent":
+            case "supervisor-agent":
                 welcome = (f"Hello! I'm your advanced AI investment advisory team with specialized "
                           f"experts in market research, portfolio analysis, and mathematical calculations. "
                           f"I coordinate between research, portfolio, and math specialists to provide "

@@ -341,5 +341,5 @@ def workflow(chosen_model):
     return main_supervisor
 
 
-langgraph_supervisor_hierarchy_agent = workflow(model).compile()
-langgraph_supervisor_hierarchy_agent = workflow(model).compile()
+supervisor_agent = workflow(model).compile()
+
