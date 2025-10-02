@@ -340,7 +340,7 @@ Please use the portfolio tools to analyze this client's data and provide relevan
 
 
 async def draw_messages(
-    messages_agen: AsyncGenerator[ChatMessage | str, None],
+    message_stream: AsyncGenerator[ChatMessage | str, None],
     is_new: bool = False,
 ) -> None:
     """
@@ -370,7 +370,7 @@ async def draw_messages(
     streaming_placeholder = None
 
     # Iterate over the messages and draw them
-    while msg := await anext(messages_agen, None):
+    while msg := await anext(message_stream, None):
         # str message represents an intermediate token being streamed
         if isinstance(msg, str):
             # If placeholder is empty, this is the first token of a new message
@@ -442,14 +442,19 @@ async def draw_messages(
                             if "transfer_to" in tool_call["name"]:
                                 status = call_results[tool_call["id"]]
                                 status.update(expanded=True)
-                                await handle_sub_agent_msgs(messages_agen, status, is_new)
+                                await handle_sub_agent_msgs(message_stream, status, is_new)
                                 break
 
                             # Only non-transfer tool calls reach this point
                             status = call_results[tool_call["id"]]
                             status.write("Input:")
                             status.write(tool_call["args"])
-                            tool_result: ChatMessage = await anext(messages_agen)
+                            try:
+                                tool_result: ChatMessage = await anext(message_stream)
+                            except StopAsyncIteration:
+                                st.error("Unexpected end of message stream while waiting for tool result")
+                                st.stop()
+                                return
 
                             if tool_result.type != "tool":
                                 st.error(f"Unexpected ChatMessage type: {tool_result.type}")
@@ -528,7 +533,7 @@ async def handle_feedback() -> None:
         st.toast("Feedback recorded", icon=":material/reviews:")
 
 
-async def handle_sub_agent_msgs(messages_agen, status, is_new):
+async def handle_sub_agent_msgs(message_stream, status, is_new):
     """
     This function segregates agent output into a status container.
     It handles all messages after the initial tool call message
@@ -537,21 +542,33 @@ async def handle_sub_agent_msgs(messages_agen, status, is_new):
     Enhanced to support nested multi-agent hierarchies with handoff back messages.
 
     Args:
-        messages_agen: Async generator of messages
+        message_stream: Async generator of messages
         status: the status container for the current agent
         is_new: Whether messages are new or replayed
     """
     nested_popovers = {}
 
     # looking for the transfer Success tool call message
-    first_msg = await anext(messages_agen)
-    if is_new:
-        st.session_state.messages.append(first_msg)
+    try:
+        first_msg = await anext(message_stream)
+        if is_new:
+            st.session_state.messages.append(first_msg)
+    except StopAsyncIteration:
+        # No messages to process
+        if status:
+            status.update(state="complete")
+        return
 
     # Continue reading until we get an explicit handoff back
     while True:
         # Read next message
-        sub_msg = await anext(messages_agen)
+        try:
+            sub_msg = await anext(message_stream)
+        except StopAsyncIteration:
+            # No more messages, agent is done
+            if status:
+                status.update(state="complete")
+            break
 
         # Handle string messages (can happen with hierarchical supervisors)
         if isinstance(sub_msg, str):
@@ -578,9 +595,13 @@ async def handle_sub_agent_msgs(messages_agen, status, is_new):
             for tc in sub_msg.tool_calls:
                 if "transfer_back_to" in tc.get("name", ""):
                     # Read the corresponding tool result
-                    transfer_result = await anext(messages_agen)
-                    if is_new:
-                        st.session_state.messages.append(transfer_result)
+                    try:
+                        transfer_result = await anext(message_stream)
+                        if is_new:
+                            st.session_state.messages.append(transfer_result)
+                    except StopAsyncIteration:
+                        # No transfer result available, continue
+                        pass
 
             # After processing transfer back, we're done with this agent
             if status:
@@ -604,7 +625,7 @@ async def handle_sub_agent_msgs(messages_agen, status, is_new):
                         )
 
                         # Recursively handle sub-agents of this sub-agent
-                        await handle_sub_agent_msgs(messages_agen, nested_status, is_new)
+                        await handle_sub_agent_msgs(message_stream, nested_status, is_new)
                     else:
                         # Regular tool call - create popover
                         popover = status.popover(f"{tc['name']}", icon="🛠️")
