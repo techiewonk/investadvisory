@@ -44,7 +44,7 @@ async def get_sqlite_store():
 async def get_sqlite_connection():
     """Get a SQLite connection for portfolio service."""
     import aiosqlite
-    
+
     # Use a separate database file for portfolio data
     portfolio_db_path = settings.SQLITE_DB_PATH.replace('.db', '_portfolio.db')
     
