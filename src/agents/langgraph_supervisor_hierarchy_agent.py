@@ -24,10 +24,11 @@ from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode, create_react_agent
 from langgraph_supervisor import create_supervisor
 
-from agents.llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
-from agents.portfolio_tools import PORTFOLIO_TOOLS
-from agents.tools import calculator
 from core import get_model, settings
+
+from .llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
+from .portfolio_tools import PORTFOLIO_TOOLS
+from .tools import calculator
 
 model = get_model(settings.DEFAULT_MODEL)
 
@@ -340,4 +341,5 @@ def workflow(chosen_model):
     return main_supervisor
 
 
+langgraph_supervisor_hierarchy_agent = workflow(model).compile()
 langgraph_supervisor_hierarchy_agent = workflow(model).compile()

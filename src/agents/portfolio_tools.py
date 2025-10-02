@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from service.portfolio_service import get_portfolio_service
+# Lazy import to avoid circular dependency - imported in functions when needed
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ async def get_client_portfolios(client_id: str) -> dict[str, Any]:
         Dictionary containing client portfolios, holdings, and performance data
     """
     try:
+        from service.portfolio_service import get_portfolio_service
         async with get_portfolio_service() as portfolio_service:
             result = await portfolio_service.get_user_portfolios(client_id)
             if not result:
@@ -86,6 +87,7 @@ async def get_client_transactions(client_id: str, limit: int = 10) -> dict[str, 
         Dictionary containing recent transactions
     """
     try:
+        from service.portfolio_service import get_portfolio_service
         async with get_portfolio_service() as portfolio_service:
             result = await portfolio_service.get_user_transactions(client_id, limit=limit, offset=0)
             if not result:
@@ -122,6 +124,7 @@ async def get_all_clients() -> dict[str, Any]:
         Dictionary containing all clients with their basic info and portfolio summaries
     """
     try:
+        from service.portfolio_service import get_portfolio_service
         async with get_portfolio_service() as portfolio_service:
             result = await portfolio_service.get_all_clients()
             
@@ -157,6 +160,7 @@ async def analyze_client_portfolio_performance(client_id: str) -> dict[str, Any]
         Dictionary containing portfolio analysis and recommendations
     """
     try:
+        from service.portfolio_service import get_portfolio_service
         async with get_portfolio_service() as portfolio_service:
             result = await portfolio_service.get_user_portfolios(client_id)
             if not result:

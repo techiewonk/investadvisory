@@ -238,22 +238,15 @@ async def main() -> None:
                             f"{client_name} ({value_str} total value)")
 
         match agent_client.agent:
-            case "chatbot":
-                welcome = (f"Hello! I'm your investment advisory chatbot. I can help analyze "
-                          f"portfolios and provide financial insights.{client_context}")
-            case "interrupt-agent":
-                welcome = (f"Hello! I'm an interrupt agent specialized in investment advisory. "
-                          f"I can analyze client portfolios and provide personalized "
-                          f"recommendations.{client_context}")
             case "research-assistant":
                 welcome = (f"Hello! I'm an AI-powered investment research assistant with web "
                           f"search and calculator capabilities. I can research market trends, "
                           f"analyze securities, and provide investment insights.{client_context}")
-            case "rag-assistant":
-                welcome = (f"Hello! I'm an AI-powered investment advisory assistant with access "
-                          f"to portfolio data and financial analysis tools. I can help you "
-                          f"analyze client portfolios, research investments, calculate returns, "
-                          f"and provide personalized recommendations.{client_context}")
+            case "langgraph-supervisor-hierarchy-agent":
+                welcome = (f"Hello! I'm your advanced AI investment advisory team with specialized "
+                          f"experts in market research, portfolio analysis, and mathematical calculations. "
+                          f"I coordinate between research, portfolio, and math specialists to provide "
+                          f"comprehensive investment analysis and recommendations.{client_context}")
             case _:
                 welcome = (f"Hello! I'm an AI investment advisor. I can help analyze portfolios, "
                           f"research securities, and provide financial guidance.{client_context}")
@@ -474,10 +467,10 @@ async def draw_messages(
                             status.update(state="complete")
 
             case "custom":
-                # CustomData example used by the bg-task-agent
+                # CustomData example for task handling
                 # See:
                 # - src/agents/utils.py CustomData
-                # - src/agents/bg_task_agent/task.py
+                # - src/schema/task_data.py
                 try:
                     task_data: TaskData = TaskData.model_validate(msg.custom_data)
                 except ValidationError:
