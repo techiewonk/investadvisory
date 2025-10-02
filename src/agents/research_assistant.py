@@ -49,10 +49,9 @@ instructions = f"""
     NOTE: THE USER CAN'T SEE THE TOOL RESPONSE.
 
     Portfolio Analysis Tools:
-    - If a client is selected in the UI, use get_selected_client_portfolios, get_selected_client_transactions, 
-      or analyze_selected_client_performance for automatic analysis
-    - For specific clients, use get_client_portfolios, get_client_transactions, or analyze_client_portfolio_performance
-    - Use get_all_clients to see available clients
+    - For specific client analysis, use get_client_portfolios(client_id), get_client_transactions(client_id), 
+      or analyze_client_portfolio_performance(client_id) with explicit client_id
+    - The client_id should be obtained from the user's selection or from get_all_clients output
 
     A few things to remember:
     - Please include markdown-formatted links to any citations used in your response. Only include one

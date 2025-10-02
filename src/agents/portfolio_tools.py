@@ -234,7 +234,13 @@ async def get_selected_client_portfolios(
     client_id = get_selected_client_id(config)
     if not client_id:
         return {
-            "error": "No client selected. Please select a client in the UI or use get_client_portfolios with a specific client_id."
+            "error": "No client selected. Please select a client in the UI or use get_client_portfolios with a specific client_id.",
+            "debug_info": {
+                "config_received": config is not None,
+                "config_type": str(type(config)) if config else None,
+                "configurable": getattr(config, "configurable", None) if config else None,
+                "selected_client": getattr(config, "configurable", {}).get("selected_client") if config and hasattr(config, "configurable") else None
+            }
         }
     
     return await get_client_portfolios.ainvoke({"client_id": client_id})
@@ -258,7 +264,13 @@ async def get_selected_client_transactions(
     client_id = get_selected_client_id(config)
     if not client_id:
         return {
-            "error": "No client selected. Please select a client in the UI or use get_client_transactions with a specific client_id."
+            "error": "No client selected. Please select a client in the UI or use get_client_transactions with a specific client_id.",
+            "debug_info": {
+                "config_received": config is not None,
+                "config_type": str(type(config)) if config else None,
+                "configurable": getattr(config, "configurable", None) if config else None,
+                "selected_client": getattr(config, "configurable", {}).get("selected_client") if config and hasattr(config, "configurable") else None
+            }
         }
     
     return await get_client_transactions.ainvoke({"client_id": client_id, "limit": limit})
@@ -278,7 +290,13 @@ async def analyze_selected_client_performance(
     client_id = get_selected_client_id(config)
     if not client_id:
         return {
-            "error": "No client selected. Please select a client in the UI or use analyze_client_portfolio_performance with a specific client_id."
+            "error": "No client selected. Please select a client in the UI or use analyze_client_portfolio_performance with a specific client_id.",
+            "debug_info": {
+                "config_received": config is not None,
+                "config_type": str(type(config)) if config else None,
+                "configurable": getattr(config, "configurable", None) if config else None,
+                "selected_client": getattr(config, "configurable", {}).get("selected_client") if config and hasattr(config, "configurable") else None
+            }
         }
     
     return await analyze_client_portfolio_performance.ainvoke({"client_id": client_id})
@@ -289,8 +307,9 @@ PORTFOLIO_TOOLS = [
     get_client_portfolios,
     get_client_transactions,
     analyze_client_portfolio_performance,
-    # New auto-selected client tools
-    get_selected_client_portfolios,
-    get_selected_client_transactions,
-    analyze_selected_client_performance,
+    # NOTE: InjectedToolArg tools removed - they don't work with create_react_agent
+    # Use explicit client_id parameters instead
+    # get_selected_client_portfolios,  # Doesn't work - InjectedToolArg issue
+    # get_selected_client_transactions,  # Doesn't work - InjectedToolArg issue  
+    # analyze_selected_client_performance,  # Doesn't work - InjectedToolArg issue
 ]

@@ -30,11 +30,11 @@ current_date = datetime.now().strftime("%B %d, %Y")
 web_search = DuckDuckGoSearchResults(name="WebSearch")
 # Market research agent focuses on market analysis, not client portfolio analysis
 # Only include portfolio tools that are relevant for market research context
-# SECURITY: Exclude get_all_clients to prevent security violations
-# Use get_selected_client_transactions as primary source (contains actual holdings with latest history)
+# Include portfolio tools for client-specific market research
+# Use explicit client_id parameters (InjectedToolArg doesn't work with create_react_agent)
 relevant_portfolio_tools = [
     tool for tool in PORTFOLIO_TOOLS 
-    if tool.name in ['get_selected_client_transactions']
+    if tool.name in ['get_client_transactions', 'get_client_portfolios']
 ]
 research_tools = [web_search, calculator] + relevant_portfolio_tools + ADVANCED_MARKET_RESEARCH_TOOLS
 
@@ -66,6 +66,7 @@ Advanced Tools Available:
 - get_company_fundamentals: Comprehensive company analysis using Financial Modeling Prep API
 - Access SEC filings (10-K, 10-Q, 8-K), company profiles, financial ratios, and key metrics
 - Analyze company financial health, risk factors, and strategic direction
+- **IMPORTANT**: Use sparingly - limit to 2-3 companies per analysis to avoid rate limits
 
 **Economic & Macro Analysis:**
 - get_economic_indicators: Track GDP, inflation, unemployment, interest rates, consumer confidence
@@ -86,29 +87,24 @@ Advanced Tools Available:
 - Calculator for financial computations
 
 **Client Holdings Research:**
-- get_selected_client_transactions: Access actual client holdings with latest transaction history
+- Use get_client_transactions(client_id) to get specific client transaction history and holdings
+- Use get_client_portfolios(client_id) to get specific client portfolio data
 - This provides the most current and accurate view of client positions and trading activity
 
 **Holdings Research Behavior:**
-- When a client is selected in the UI: Use get_selected_client_transactions to get their holdings and transaction history
-- When no client is selected: Provide general market research and analysis without client-specific data
-- If client transactions are available: Analyze the securities to identify current positions and recent trading patterns
+- Ask user which client to analyze, or use a specific client_id if provided
+- Use get_client_transactions(client_id) to get holdings and transaction history for that client
+- Analyze the securities to identify current positions and recent trading patterns
 - Research holdings to provide market insights, investment recommendations, and trend analysis
 - Focus on market trends, sector analysis, and company fundamentals
-- SECURITY: Never call get_all_clients - this is a security violation
-
-**Client Selection Handling:**
-- Check if a client is selected before calling get_selected_client_transactions
-- If no client selected: Provide general market analysis, economic indicators, sector performance, and market trends
-- If client selected: Include client-specific holdings analysis in addition to general market research
-- Always provide valuable market insights regardless of client selection status
 
 **Important Tool Usage Guidelines:**
-- For company analysis: Use get_company_fundamentals (not portfolio analysis tools)
+- For company analysis: Use get_company_fundamentals (LIMIT to 2-3 calls per analysis)
 - For market research: Use market research tools (economic indicators, news sentiment, sector performance)
-- For holdings research: Use get_selected_client_transactions to get actual holdings with latest history, then research the individual securities
+- For holdings research: Use get_client_transactions(client_id) to get actual holdings with latest history, then research the individual securities
 - For client portfolio analysis: Delegate to portfolio specialist agent
 - For complex calculations: Delegate to math specialist agent
+- **Rate Limiting**: API calls have delays built-in, but avoid excessive calls to prevent timeouts
 
 **Analysis Framework:**
 1. Start with macro environment (economic indicators)
@@ -116,9 +112,9 @@ Advanced Tools Available:
 3. Check client selection status:
    - If client selected: Use get_selected_client_transactions to get holdings and transaction history
    - If no client selected: Focus on general market analysis and trends
-4. Research specific companies:
+4. Research specific companies (LIMIT to 2-3 companies):
    - From client holdings (if available) OR general market leaders/trends
-   - Use company fundamentals, financial ratios, SEC filings
+   - Use get_company_fundamentals sparingly to avoid rate limits
 5. Assess news sentiment and market psychology
 6. Apply technical analysis for timing and entry/exit points
 7. Identify risks and opportunities based on market conditions (and positions if available)

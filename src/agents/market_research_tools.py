@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Dict, List, Optional
@@ -53,7 +54,7 @@ def rate_limit(calls_per_minute: int = 60):
 
 
 @tool
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=2, min=5, max=15))
 def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str, Any]:
     """
     Get company fundamentals, SEC filings, and financial data using Financial Modeling Prep API.
@@ -85,7 +86,8 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                 
                 # Get company profile with detailed information
                 profile_url = f"{base_url}/profile/{ticker.upper()}?apikey={api_key}"
-                profile_response = requests.get(profile_url, timeout=30)
+                profile_response = requests.get(profile_url, timeout=15)
+                time.sleep(0.5)  # Rate limiting - 0.5 second delay
                 
                 if profile_response.status_code == 200:
                     profile_data = profile_response.json()
@@ -107,7 +109,8 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                 
                 # Get SEC filings with Financial Modeling Prep's structured data
                 filings_url = f"{base_url}/sec_filings/{ticker.upper()}?type={filing_type}&page=0&apikey={api_key}"
-                filings_response = requests.get(filings_url, timeout=30)
+                filings_response = requests.get(filings_url, timeout=15)
+                time.sleep(0.5)  # Rate limiting - 0.5 second delay
                 
                 if filings_response.status_code == 200:
                     filings_json = filings_response.json()
@@ -125,7 +128,8 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                 
                 # Get comprehensive financial ratios and metrics
                 ratios_url = f"{base_url}/ratios/{ticker.upper()}?limit=1&apikey={api_key}"
-                ratios_response = requests.get(ratios_url, timeout=30)
+                ratios_response = requests.get(ratios_url, timeout=15)
+                time.sleep(0.5)  # Rate limiting - 0.5 second delay
                 
                 if ratios_response.status_code == 200:
                     ratios_data = ratios_response.json()
@@ -148,7 +152,8 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                 
                 # Get key financial metrics for additional insights
                 metrics_url = f"{base_url}/key-metrics/{ticker.upper()}?limit=1&apikey={api_key}"
-                metrics_response = requests.get(metrics_url, timeout=30)
+                metrics_response = requests.get(metrics_url, timeout=15)
+                time.sleep(0.5)  # Rate limiting - 0.5 second delay
                 
                 if metrics_response.status_code == 200:
                     metrics_data = metrics_response.json()
@@ -170,18 +175,20 @@ def get_company_fundamentals(ticker: str, filing_type: str = "10-K") -> Dict[str
                 
                 return filings_data
                 
-            except Exception as e:
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout, 
+                    requests.exceptions.ConnectionError, Exception) as e:
                 logger.warning(f"Financial Modeling Prep API error for {ticker}: {e}")
         
         # Try Alpha Vantage as backup
         if settings.ALPHA_VANTAGE_API_KEY:
             try:
                 return _get_alpha_vantage_fundamentals(ticker, filing_type)
-            except Exception as e:
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout, 
+                    requests.exceptions.ConnectionError, Exception) as e:
                 logger.warning(f"Alpha Vantage API error for {ticker}: {e}")
         
         # Fallback to mock data
-        logger.info(f"No API keys configured for SEC data, using mock data for {ticker}")
+        logger.info(f"API connection issues or no API keys configured for {ticker}, using mock data")
         return _get_mock_sec_data(ticker, filing_type)
         
     except Exception as e:

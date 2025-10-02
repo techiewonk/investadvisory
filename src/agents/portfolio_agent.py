@@ -35,10 +35,10 @@ Your expertise includes:
 - Holdings performance evaluation
 
 Portfolio Analysis Tools:
-- If a client is selected in the UI, use get_selected_client_portfolios, get_selected_client_transactions, 
-  or analyze_selected_client_performance for automatic analysis
-- For specific clients, use get_client_portfolios, get_client_transactions, or analyze_client_portfolio_performance
 - Use get_all_clients to see available clients
+- For specific client analysis, use get_client_portfolios(client_id), get_client_transactions(client_id), 
+  or analyze_client_portfolio_performance(client_id) with explicit client_id
+- The client_id should be obtained from the user's selection or from get_all_clients output
 
 Always provide actionable insights and recommendations based on portfolio data.
 """
@@ -58,5 +58,4 @@ def create_portfolio_agent(model=None):
 
 
 # Create the standalone portfolio agent
-portfolio_agent = create_portfolio_agent()
 portfolio_agent = create_portfolio_agent()
