@@ -12,7 +12,13 @@ from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from langchain_core._api import LangChainBetaWarning
-from langchain_core.messages import AIMessage, AIMessageChunk, AnyMessage, HumanMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    AnyMessage,
+    HumanMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import RunnableConfig
 from langfuse import Langfuse  # type: ignore[import-untyped]
 from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
@@ -32,6 +38,14 @@ from schema import (
     StreamInput,
     UserInput,
 )
+from schema.portfolio_schema import (
+    AllClientsResponse,
+    GetUserPortfoliosRequest,
+    GetUserTransactionsRequest,
+    UserPortfoliosResponse,
+    UserTransactionsResponse,
+)
+from service.portfolio_service import get_portfolio_service
 from service.utils import (
     convert_message_content_to_string,
     langchain_to_chat_message,
@@ -406,6 +420,81 @@ async def history(input: ChatHistoryInput) -> ChatHistory:
     except Exception as e:
         logger.error(f"An exception occurred: {e}")
         raise HTTPException(status_code=500, detail="Unexpected error")
+
+
+# Portfolio API endpoints
+@router.get("/portfolio/clients", response_model=AllClientsResponse)
+async def get_all_clients() -> AllClientsResponse:
+    """Get all clients with summary information."""
+    try:
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_all_clients()
+            return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting all clients: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/portfolio/user-portfolios", response_model=UserPortfoliosResponse)
+async def get_user_portfolios(request: GetUserPortfoliosRequest) -> UserPortfoliosResponse:
+    """Get all portfolios for a user by client ID."""
+    try:
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_user_portfolios(request.client_id)
+            if not result:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"User with client_id '{request.client_id}' not found"
+                )
+            return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting user portfolios: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/portfolio/user-transactions", response_model=UserTransactionsResponse)
+async def get_user_transactions(request: GetUserTransactionsRequest) -> UserTransactionsResponse:
+    """Get transaction history for a user by client ID."""
+    try:
+        async with get_portfolio_service() as portfolio_service:
+            result = await portfolio_service.get_user_transactions(
+                request.client_id, 
+                request.limit, 
+                request.offset
+            )
+            if not result:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"User with client_id '{request.client_id}' not found"
+                )
+            return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting user transactions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/portfolio/users/{client_id}/portfolios", response_model=UserPortfoliosResponse)
+async def get_user_portfolios_by_path(client_id: str) -> UserPortfoliosResponse:
+    """Get all portfolios for a user by client ID (path parameter version)."""
+    request = GetUserPortfoliosRequest(client_id=client_id)
+    return await get_user_portfolios(request)
+
+
+@router.get("/portfolio/users/{client_id}/transactions", response_model=UserTransactionsResponse)
+async def get_user_transactions_by_path(
+    client_id: str,
+    limit: int = 100,
+    offset: int = 0
+) -> UserTransactionsResponse:
+    """Get transaction history for a user by client ID (path parameter version)."""
+    request = GetUserTransactionsRequest(client_id=client_id, limit=limit, offset=offset)
+    return await get_user_transactions(request)
 
 
 @app.get("/health")
