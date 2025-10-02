@@ -21,13 +21,16 @@ class LlamaGuardOutput(BaseModel):
     )
 
 
+# Safety categories for content moderation
+# Note: S6 "Specialized Advice" is intentionally excluded for investment advisory platform
+# as providing financial advice and portfolio analysis is the core purpose of this service
 unsafe_content_categories = {
     "S1": "Violent Crimes.",
     "S2": "Non-Violent Crimes.",
     "S3": "Sex Crimes.",
     "S4": "Child Exploitation.",
     "S5": "Defamation.",
-    "S6": "Specialized Advice.",
+    # "S6": "Specialized Advice.",  # Excluded - investment advice is our core service
     "S7": "Privacy.",
     "S8": "Intellectual Property.",
     "S9": "Indiscriminate Weapons.",

@@ -3,11 +3,24 @@
 import logging
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from service.portfolio_service import get_portfolio_service
 
 logger = logging.getLogger(__name__)
+
+
+def get_selected_client_id(config: RunnableConfig | None = None) -> str | None:
+    """Extract selected client ID from agent config."""
+    if not config or not config.get("configurable"):
+        return None
+    
+    selected_client = config["configurable"].get("selected_client")
+    if selected_client and isinstance(selected_client, dict):
+        return selected_client.get("client_id")
+    
+    return None
 
 
 @tool
@@ -199,9 +212,70 @@ async def analyze_client_portfolio_performance(client_id: str) -> dict[str, Any]
 
 
 # List of all portfolio tools for easy import
+@tool
+async def get_selected_client_portfolios(config: RunnableConfig | None = None) -> dict[str, Any]:
+    """
+    Get portfolio information for the currently selected client.
+    This tool automatically uses the client selected in the UI.
+    
+    Returns:
+        Dictionary containing selected client's portfolios, holdings, and performance data
+    """
+    client_id = get_selected_client_id(config)
+    if not client_id:
+        return {
+            "error": "No client selected. Please select a client in the UI or use get_client_portfolios with a specific client_id."
+        }
+    
+    return await get_client_portfolios.ainvoke({"client_id": client_id})
+
+
+@tool
+async def get_selected_client_transactions(limit: int = 10, config: RunnableConfig | None = None) -> dict[str, Any]:
+    """
+    Get transaction history for the currently selected client.
+    This tool automatically uses the client selected in the UI.
+    
+    Args:
+        limit: Maximum number of transactions to return (default: 10)
+        
+    Returns:
+        Dictionary containing selected client's recent transactions
+    """
+    client_id = get_selected_client_id(config)
+    if not client_id:
+        return {
+            "error": "No client selected. Please select a client in the UI or use get_client_transactions with a specific client_id."
+        }
+    
+    return await get_client_transactions.ainvoke({"client_id": client_id, "limit": limit})
+
+
+@tool
+async def analyze_selected_client_performance(config: RunnableConfig | None = None) -> dict[str, Any]:
+    """
+    Perform comprehensive portfolio analysis for the currently selected client.
+    This tool automatically uses the client selected in the UI.
+    
+    Returns:
+        Dictionary containing detailed portfolio analysis and performance metrics
+    """
+    client_id = get_selected_client_id(config)
+    if not client_id:
+        return {
+            "error": "No client selected. Please select a client in the UI or use analyze_client_portfolio_performance with a specific client_id."
+        }
+    
+    return await analyze_client_portfolio_performance.ainvoke({"client_id": client_id})
+
+
 PORTFOLIO_TOOLS = [
     get_all_clients,
     get_client_portfolios,
     get_client_transactions,
     analyze_client_portfolio_performance,
+    # New auto-selected client tools
+    get_selected_client_portfolios,
+    get_selected_client_transactions,
+    analyze_selected_client_performance,
 ]

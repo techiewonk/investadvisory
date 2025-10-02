@@ -15,6 +15,7 @@ from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode
 
 from agents.llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
+from agents.portfolio_tools import PORTFOLIO_TOOLS
 from agents.tools import calculator
 from core import get_model, settings
 
@@ -30,7 +31,7 @@ class AgentState(MessagesState, total=False):
 
 
 web_search = DuckDuckGoSearchResults(name="WebSearch")
-tools = [web_search, calculator]
+tools = [web_search, calculator] + PORTFOLIO_TOOLS
 
 # Add weather tool if API key is set
 # Register for an API key at https://openweathermap.org/api/
@@ -42,10 +43,16 @@ if settings.OPENWEATHERMAP_API_KEY:
 
 current_date = datetime.now().strftime("%B %d, %Y")
 instructions = f"""
-    You are a helpful research assistant with the ability to search the web and use other tools.
+    You are a helpful investment research assistant with the ability to search the web, calculate, and analyze portfolios.
     Today's date is {current_date}.
 
     NOTE: THE USER CAN'T SEE THE TOOL RESPONSE.
+
+    Portfolio Analysis Tools:
+    - If a client is selected in the UI, use get_selected_client_portfolios, get_selected_client_transactions, 
+      or analyze_selected_client_performance for automatic analysis
+    - For specific clients, use get_client_portfolios, get_client_transactions, or analyze_client_portfolio_performance
+    - Use get_all_clients to see available clients
 
     A few things to remember:
     - Please include markdown-formatted links to any citations used in your response. Only include one

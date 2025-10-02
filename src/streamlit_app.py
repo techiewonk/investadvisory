@@ -180,8 +180,11 @@ async def main() -> None:
                                         st.metric("Client ID", selected_client["client_id"])
                                         st.metric("Holdings", selected_client["holdings_count"])
                                     with col2:
-                                        total_value = selected_client['total_portfolio_value']
-                                        st.metric("Total Value", f"${total_value:,.2f}")
+                                        try:
+                                            total_value = float(selected_client['total_portfolio_value'])
+                                            st.metric("Total Value", f"${total_value:,.2f}")
+                                        except (ValueError, TypeError):
+                                            st.metric("Total Value", str(selected_client['total_portfolio_value']))
                                         risk_profile = selected_client.get("risk_profile") or "Not set"
                                         st.metric("Risk Profile", risk_profile)
                             else:
@@ -226,9 +229,13 @@ async def main() -> None:
         client_context = ""
         if selected_client:
             client_name = selected_client.get('name', 'No name')
-            total_value = selected_client['total_portfolio_value']
+            try:
+                total_value = float(selected_client['total_portfolio_value'])
+                value_str = f"${total_value:,.2f}"
+            except (ValueError, TypeError):
+                value_str = str(selected_client['total_portfolio_value'])
             client_context = (f"\n\n**Current Client:** {selected_client['client_id']} - "
-                            f"{client_name} (${total_value:,.2f} total value)")
+                            f"{client_name} ({value_str} total value)")
 
         match agent_client.agent:
             case "chatbot":
@@ -268,20 +275,44 @@ async def main() -> None:
 
     # Generate new message if the user provided new input
     if user_input := st.chat_input():
-        # Prepare the message with optional client context
+        # Prepare agent config with selected client information
         selected_client = st.session_state.get("selected_client")
+        agent_config = {}
+        
         if selected_client:
-            # Add client context to the message for the agent
+            # Pass client information through agent_config
+            try:
+                portfolio_value = float(selected_client["total_portfolio_value"])
+            except (ValueError, TypeError):
+                portfolio_value = 0.0
+                
+            agent_config["selected_client"] = {
+                "client_id": selected_client["client_id"],
+                "name": selected_client.get("name"),
+                "holdings_count": selected_client["holdings_count"],
+                "total_portfolio_value": portfolio_value,
+                "risk_profile": selected_client.get("risk_profile"),
+                "portfolio_count": selected_client["portfolio_count"]
+            }
+            
+            # Also enhance the message with context for better user experience
+            try:
+                total_value = float(selected_client['total_portfolio_value'])
+                value_str = f"${total_value:,.2f}"
+            except (ValueError, TypeError):
+                value_str = str(selected_client['total_portfolio_value'])
+                
             enhanced_input = f"""User Query: {user_input}
 
 Selected Portfolio Client: {selected_client['client_id']} - {selected_client.get('name', 'No name')}
 Holdings Count: {selected_client['holdings_count']}
-Total Portfolio Value: ${selected_client['total_portfolio_value']:,.2f}
+Total Portfolio Value: {value_str}
 Risk Profile: {selected_client.get('risk_profile', 'Not set')}
 
 Please use the portfolio tools to analyze this client's data and provide relevant insights."""
         else:
             enhanced_input = user_input
+        
         messages.append(ChatMessage(type="human", content=user_input))
         st.chat_message("human").write(user_input)
         try:
@@ -291,6 +322,7 @@ Please use the portfolio tools to analyze this client's data and provide relevan
                     model=model,
                     thread_id=st.session_state.thread_id,
                     user_id=user_id,
+                    agent_config=agent_config,
                 )
                 await draw_messages(stream, is_new=True)
             else:
@@ -299,6 +331,7 @@ Please use the portfolio tools to analyze this client's data and provide relevan
                     model=model,
                     thread_id=st.session_state.thread_id,
                     user_id=user_id,
+                    agent_config=agent_config,
                 )
                 messages.append(response)
                 st.chat_message("ai").write(response.content)
